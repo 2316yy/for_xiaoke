@@ -1,0 +1,12 @@
+{
+  "name": "wish-to-cthulhu-game2-5",
+  "version": "2.5.0",
+  "private": true,
+  "description": "wish-to-cthulhu game2.5 · 集曜图鉴（抽签图鉴 + 抽签次数）",
+  "scripts": {
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "three": "^0.186.0"
+  }
+}
