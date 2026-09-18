@@ -620,12 +620,14 @@ function placeModel(model) {
   /* game2.5：神像底座即展台——方块不可放上神像，禁放半径据此校准 */
   if (garden) garden.setExclusion(baseR + 0.5);
 
-  const dist = 4.6;
+  /* 2.5.1 竖屏/窄屏拉远机位：手机竖屏也能看到神像全身与底座 */
+  const aspect = window.innerWidth / window.innerHeight;
+  const dist = 4.6 * (aspect < 1 ? Math.min(1.6, 0.72 / aspect) : 1);
   HOME.pos.set(Math.sin(0.6) * dist, 1.75, Math.cos(0.6) * dist);
   camera.position.copy(HOME.pos);
   controls.target.copy(HOME.target);
   controls.minDistance = 1.6;
-  controls.maxDistance = 9;
+  controls.maxDistance = (window.__device && window.__device.touch) ? 12 : 9;
   controls.maxPolarAngle = Math.PI * 0.52;
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.9;

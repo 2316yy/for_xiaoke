@@ -732,6 +732,14 @@ function renderResult() {
     <div class="san">理 智 消 耗 <b>−${san}</b></div>
     ${cubeNoteHtml}
 
+    <div class="again-date-row">
+      <span class="ad-cap">再 问 之 日</span>
+      <button class="date-step" id="again-prev" aria-label="前一天">‹</button>
+      <button class="date-label" id="again-label" title="点开择日"></button>
+      <button class="date-step" id="again-next" aria-label="后一天">›</button>
+      <input type="date" id="again-jump" aria-label="选择日期">
+    </div>
+
     <div class="btns">
       <button class="primary" id="again">再 求 一 签</button>
       <button id="copy">抄 录 谶 言</button>
@@ -759,6 +767,30 @@ function renderResult() {
   stageResult.scrollTop = 0;
 
   requestAnimationFrame(() => typePoem(lot.poem));
+
+  /* 2.5.1：结果页择日续问——不再锁死当天，可 ±90 天另择再问 */
+  const againLabelEl = document.getElementById('again-label');
+  const againJumpEl = document.getElementById('again-jump');
+  const renderAgainDate = () => {
+    if (window.__dex && targetDate && againLabelEl) {
+      againLabelEl.innerHTML =
+        '<b>' + escapeHtml(window.__dex.dateLabel(targetDate)) + '</b>' +
+        '<span class="rel">' + escapeHtml(window.__dex.relLabel(targetDate)) + '</span>';
+    }
+  };
+  renderAgainDate();
+  document.getElementById('again-prev').onclick = () => { setTargetDate(window.__dex.addDays(targetDate, -1)); renderAgainDate(); };
+  document.getElementById('again-next').onclick = () => { setTargetDate(window.__dex.addDays(targetDate, 1)); renderAgainDate(); };
+  againLabelEl.onclick = () => {
+    try {
+      againJumpEl.value = targetDate;
+      if (againJumpEl.showPicker) againJumpEl.showPicker();
+      else againJumpEl.focus();
+    } catch (e) { againJumpEl.focus(); }
+  };
+  againJumpEl.addEventListener('change', () => {
+    if (againJumpEl.value) { setTargetDate(againJumpEl.value); renderAgainDate(); }
+  });
 
   document.getElementById('again').onclick = () => { if (!asking) startRitual(false); };
   document.getElementById('back').onclick = () => {
@@ -793,6 +825,22 @@ function showToast(msg) {
   t.classList.add('on');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('on'), 1800);
+}
+
+/* 2.5.1 触屏花园模式：没有 hover，面板常暗淡但控件始终可点；
+   轻点面板空白处切换 .peek 全亮，点画布（转视角/拖方块）自动收起 */
+if (window.__device && window.__device.touch) {
+  const sh = document.getElementById('stage-home');
+  if (sh) {
+    sh.addEventListener('pointerdown', (e) => {
+      if (!document.body.classList.contains('garden-mode')) return;
+      if (e.target.closest('button,textarea,input')) return;
+      sh.classList.toggle('peek');
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!sh.contains(e.target)) sh.classList.remove('peek');
+    });
+  }
 }
 
 /* 打字机签诗（点击诗行可直接显示全文） */

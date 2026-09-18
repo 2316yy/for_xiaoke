@@ -2,7 +2,24 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>
+/* 设备探测：渲染前打标到 <html>，CSS/JS 双通道取用（window.__device） */
+(function () {
+  var ua = navigator.userAgent || '';
+  var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+  var ipad = /Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+  var mobileUA = /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(ua) || ipad;
+  var d = window.__device = {
+    touch: coarse || ('ontouchstart' in window),
+    mobile: mobileUA || (coarse && Math.min(screen.width, screen.height) < 820),
+    coarse: coarse
+  };
+  var root = document.documentElement;
+  root.classList.add(d.touch ? 'is-touch' : 'is-mouse');
+  if (d.mobile) root.classList.add('is-mobile');
+})();
+</script>
 <title>向克苏鲁许愿 · 集曜 2.5</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='none' stroke='%23d8b46a' stroke-width='4'/%3E%3Cpath d='M50 10 L82 68 L18 68 Z' fill='none' stroke='%23d8b46a' stroke-width='4'/%3E%3C/svg%3E" />
 <style>
@@ -541,16 +558,60 @@
   .rec .rq { margin-top: 5px; font-size: 11.5px; line-height: 1.9; color: var(--dim); letter-spacing: .06em; text-shadow: var(--sh); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .rec .rdate { flex: 0 0 auto; font-size: 10px; letter-spacing: .14em; color: var(--faint); text-shadow: var(--sh); }
   .rec-empty { text-align: center; padding: 40px 0; font-size: 12px; letter-spacing: .3em; color: var(--faint); text-shadow: var(--sh); }
-  /*  64  */
+  /*  64 签谱格子（2.5.1 补全：基础样式此前缺失，未点亮 .18 太暗 → 提至 .5）  */
   .veil .card { margin: 0 auto; width: 100%; }
   .veil-meta { margin-top: 4px; font-size: 11px; color: var(--faint); letter-spacing: .12em; line-height: 2; text-shadow: var(--sh); }
   .veil-meta em { color: var(--dim); font-style: normal; }
+  .lot-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; max-width: 620px; margin: 0 auto; }
+  .lot-cell {
+    padding: 13px 4px 11px; text-align: center; border-radius: 10px;
+    border: 1px solid rgba(232,228,245,.12); background: rgba(232,228,245,.02);
+    cursor: default; transition: all .35s;
+  }
+  .lot-cell .ln { display: block; font-size: 13px; letter-spacing: .14em; color: rgba(232,228,245,.5); text-shadow: var(--sh); }
+  .lot-cell .lname { display: block; margin-top: 6px; font-size: 9px; letter-spacing: .08em; color: rgba(232,228,245,.42); text-shadow: var(--sh); }
+  .lot-cell.lit {
+    cursor: pointer; border-color: rgba(216,180,106,.55); background: rgba(216,180,106,.1);
+    box-shadow: 0 0 16px rgba(216,180,106,.22);
+  }
+  .lot-cell.lit:hover { background: rgba(216,180,106,.16); box-shadow: 0 0 22px rgba(216,180,106,.38); }
+  .lot-cell.lit .ln { color: var(--gold); text-shadow: 0 0 12px rgba(216,180,106,.5), var(--sh); }
+  .lot-cell.lit .lname { color: rgba(216,180,106,.78); }
+
+  /* 2.5.1 结果页「再问之日」择日行 */
+  .again-date-row {
+    display: flex; align-items: baseline; justify-content: center; gap: 4px;
+    margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(232,228,245,.08);
+  }
+  .again-date-row .ad-cap { font-size: 10.5px; letter-spacing: .3em; color: var(--faint); margin-right: 8px; text-shadow: var(--sh); }
+  #again-jump { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+  /* ============ 移动端 / 触控适配（2.5.1） ============ */
+  html { -webkit-tap-highlight-color: transparent; }
+  body { touch-action: manipulation; overscroll-behavior: none; }
   @media (max-width: 820px) {
     .yao-grid { grid-template-columns: repeat(4, 1fr); gap: 14px 6px; }
-    .lot-grid { grid-template-columns: repeat(8, 1fr); gap: 5px; }
+    .lot-grid { grid-template-columns: repeat(8, 1fr); gap: 6px; }
+    .lot-cell { padding: 10px 2px 9px; }
+    .lot-cell .ln { font-size: 12px; }
     .lot-cell .lname { display: none; }
-    .veil-inner { margin: 6vh auto 12vh; }
+    .veil-inner { margin: 6vh auto 12vh; padding-bottom: calc(2vh + env(safe-area-inset-bottom)); }
+    /* 44px 触控目标 */
+    #ask { min-height: 50px; }
+    .date-step { padding: 10px 14px; }
+    .mood { min-height: 44px; }
+    .stats-row .stat { min-height: 44px; }
+    .btns button { min-height: 46px; }
+    .veil-close { top: 14px; right: 16px; padding: 14px; }
+    .card { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+    .again-date-row { flex-wrap: wrap; row-gap: 12px; }
   }
+  /* 触屏没有 hover：花园模式下面板保持可点，轻点面板本体切换提亮 */
+  html.is-touch body.garden-mode #stage-home { opacity: .32; translate: 0 0; transition: opacity .3s; }
+  html.is-touch body.garden-mode #stage-home.peek { opacity: 1; }
+  html.is-touch body.garden-mode #stage-home button,
+  html.is-touch body.garden-mode #stage-home textarea,
+  html.is-touch body.garden-mode #stage-home input { pointer-events: auto; }
   @media (prefers-reduced-motion: reduce) {
     .cursor { animation: none; }
     .ritual-prompt { animation: none; }
