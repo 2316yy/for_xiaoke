@@ -15,6 +15,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const SIZE = 0.42;          // 方块世界边长
 const PITCH = 0.52;         // 网格间距
 const MAX_LEVEL = 8;        // 最高堆 8 层
+const PLATFORM_Y = 0;       // 展台顶面世界高度（与 main.js 基座顶一致）
 const LIFT = 0.055;         // 拖拽中的悬浮高度
 const OUTER_R = 4.4;        // 可摆放外半径
 
@@ -31,9 +32,15 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorY);
+  const platformPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PLATFORM_Y);  /* 2.5.2 台面求交 */
   const planeHit = new THREE.Vector3();
+  const planeHit2 = new THREE.Vector3();
 
-  let exclusionR = 1.45;                // 神像禁放半径（placeModel 后校准）
+  /* 2.5.1 三区摆放模型：神像本体（禁放）/ 展台顶面（可放，y=0）/ 四周地面（可放，y=floorY）
+     两区之间的环带（展台边缘与座体）禁放，防止方块嵌进底座 */
+  let statueR = 1.45;                   // 神像本体占位半径（placeModel 后校准）
+  let platformR = 0;                    // 展台顶面可放半径（0 = 无展台，全部落地）
+  let baseOuterR = 1.45;                // 底座外沿半径（禁放环带）
   let enabled = true;                   // 仪式中暂停
   let onCubeClick = () => {};
 
@@ -41,6 +48,11 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
   const cubes = new Map();   // key -> entry
   /* entry: { key, meta, grp, body, proxy, ring, i,j,k, ry, ryTarget,
              state, bornAt, phase, moodColor, loadState, sparkles } */
+
+  /* 2.5.2 调试：/#dbg 开启事件日志（线上排查触控问题用） */
+  let dbgOn = false;
+  try { dbgOn = /[?#&]dbg/.test(location.href); } catch (e) {}
+  window.__DBG = window.__DBG || dbgOn;
 
   const grid = new Map();    // "i,j" -> [key@lv0, key@lv1, ...]
   const colKey = (i, j) => i + ',' + j;
@@ -169,17 +181,26 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
 
   /* ---------- 格子工具 ---------- */
   function cellCenter(i, j) { return { x: i * PITCH, z: j * PITCH }; }
+  /* 所在格子的落脚高度：展台环带内 → 台面；以外 → 地面 */
+  function floorAt(i, j) {
+    const { x, z } = cellCenter(i, j);
+    return (Math.hypot(x, z) < platformR) ? PLATFORM_Y : floorY;
+  }
   function cellValid(i, j, exclKey) {
     const { x, z } = cellCenter(i, j);
     const r = Math.hypot(x, z);
-    if (r < exclusionR || r > OUTER_R) return false;
+    if (r < platformR) {
+      if (r < statueR) return false;            /* 神像本体占位 */
+    } else {
+      if (r < baseOuterR || r > OUTER_R) return false;  /* 底座环带 / 越界 */
+    }
     if (colStack(i, j, exclKey).length >= MAX_LEVEL) return false;
     return true;
   }
   function cellAt(x, z) { return { i: Math.round(x / PITCH), j: Math.round(z / PITCH) }; }
   function targetPos(i, j, k, lift) {
     const { x, z } = cellCenter(i, j);
-    return new THREE.Vector3(x, floorY + k * SIZE + (lift || 0), z);
+    return new THREE.Vector3(x, floorAt(i, j) + k * SIZE + (lift || 0), z);
   }
 
   /* 默认落位：左侧弧带优先（初始镜头下最可见），随后环带铺开 */
@@ -242,7 +263,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
   function dropFx(pos, color) {
     const ring = ringMesh(SIZE * 0.4, SIZE * 0.52, color, 0.75);
     ring.position.copy(pos);
-    ring.position.y = floorY + 0.01;
+    ring.position.y = pos.y + 0.01;   /* pos 即落点层面（台面或地面） */
     fxGroup.add(ring);
     dropRings.push({ ring, t0: performance.now() });
     if (window.__audio && window.__audio.knock) window.__audio.knock(0.9);
@@ -299,6 +320,12 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
     if (!c) {
       if (!raycaster.ray.intersectPlane(dragPlane, planeHit)) return;
       c = cellAt(planeHit.x, planeHit.z);
+      if (window.__DBG) console.log('[cube] ray', Math.round(e.clientX), Math.round(e.clientY), 'floorcell', c.i, c.j);
+      /* 2.5.2 台面高度补偿：落点在台面区时改与台面求交，消除 0.18m 高差视差 */
+      if (floorAt(c.i, c.j) === PLATFORM_Y && raycaster.ray.intersectPlane(platformPlane, planeHit2)) {
+        c = cellAt(planeHit2.x, planeHit2.z);
+        if (window.__DBG) console.log('[cube] platformpass ->', c.i, c.j);
+      }
     }
     const changed = c.i !== drag.cellI || c.j !== drag.cellJ;
     drag.cellI = c.i; drag.cellJ = c.j;
@@ -485,12 +512,12 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
     let dr = ryGoal - en.grp.rotation.y;
     dr = Math.atan2(Math.sin(dr), Math.cos(dr));
     en.grp.rotation.y += dr * 0.2;
-    /* 落点标记：金=可落，红=禁放 */
-    marker.position.set(drag.target.x, floorY + 0.011, drag.target.z);
+    /* 落点标记：金=可落，红=禁放；贴目标格的实际落面（台面/地面/堆顶） */
+    marker.position.set(drag.target.x, drag.target.y - LIFT + 0.011, drag.target.z);
     marker.material.color.set(drag.valid ? 0xd8b46a : 0xd85e6a);
     /* 牵引线：从格心到方块 */
     const pos = guide.geometry.attributes.position;
-    pos.setXYZ(0, drag.target.x, floorY + 0.012, drag.target.z);
+    pos.setXYZ(0, drag.target.x, drag.target.y - LIFT + 0.012, drag.target.z);
     pos.setXYZ(1, en.grp.position.x, en.grp.position.y, en.grp.position.z);
     pos.needsUpdate = true;
     guide.material.color.set(drag.valid ? 0xd8b46a : 0xd85e6a);
@@ -517,7 +544,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
     const ten = td && cubes.get(td);
     if (ten && ten.state !== 'drag') {
       todayRing.material.opacity = 0.4 + 0.22 * Math.sin(t * 1.6);
-      todayRing.position.set(ten.grp.position.x, floorY + 0.012, ten.grp.position.z);
+      todayRing.position.set(ten.grp.position.x, ten.grp.position.y + 0.012, ten.grp.position.z);
     } else {
       todayRing.material.opacity = 0;
     }
@@ -639,7 +666,13 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
       });
       setTimeout(saveLayout, arr.length * 70 + 420);
     },
-    setExclusion(r) { exclusionR = r; },
+    setExclusion(r) { statueR = r; if (!platformR) baseOuterR = r; },
+    /* 2.5.1 展台标定：pR 台面可放半径 / sR 神像占位 / bR 底座外沿 */
+    setPlatform(pR, sR, bR) {
+      platformR = pR || 0;
+      if (sR) statueR = sR;
+      baseOuterR = bR || statueR;
+    },
     setEnabled(v) { enabled = v; },
     onClick(fn) { onCubeClick = fn; },
     count() { return cubes.size; },
@@ -663,7 +696,15 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
       const rect = dom.getBoundingClientRect();
       return { x: rect.left + (v.x + 1) / 2 * rect.width, y: rect.top + (-v.y + 1) / 2 * rect.height };
     },
-    debugInfo() { return { exclusionR, outerR: OUTER_R, cubes: cubes.size }; },
+    debugInfo() { return { statueR, platformR, baseOuterR, outerR: OUTER_R, cubes: cubes.size }; },
+    /* 测试辅助：格子 → 屏幕 CSS 像素（atY 可指定投影高度，默认该格落面） */
+    cellScreenPos(i, j, atY) {
+      const { x, z } = cellCenter(i, j);
+      const y = (typeof atY === 'number') ? atY : floorAt(i, j);
+      const v = new THREE.Vector3(x, y, z).project(camera);
+      const rect = dom.getBoundingClientRect();
+      return { x: rect.left + (v.x + 1) / 2 * rect.width, y: rect.top + (-v.y + 1) / 2 * rect.height };
+    },
     tick(t) { stepAnims(performance.now()); dragStep(); idleFx(t); },
   };
 

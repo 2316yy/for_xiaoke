@@ -446,6 +446,7 @@ let energyRatio = 0;            // 摇签蓄力 0..1
 const moodColor = { current: new THREE.Color(0x9d7bff), target: new THREE.Color(0x9d7bff) };
 const gazeBase = new THREE.Color();
 
+window.__controls = controls;   /* 测试/调试辅助：自动旋转与镜头控制 */
 window.__ritual = {
   /* 叩问：推近神像，群星涌动；随后进入「亲手摇」蓄力阶段 */
   async awaken() {
@@ -617,8 +618,12 @@ function placeModel(model) {
 
   figurine.add(base, trim, model);
 
-  /* game2.5：神像底座即展台——方块不可放上神像，禁放半径据此校准 */
-  if (garden) garden.setExclusion(baseR + 0.5);
+  /* game2.5.1：神像底座即展台——台面环带可放方块，神像本体与底座边缘禁放 */
+  if (garden) garden.setPlatform(
+    baseR - 0.19,                        /* 台面可放半径（方块半宽 0.19 留在台面内） */
+    Math.max(footprint * 0.42, 0.4),     /* 神像本体占位 */
+    baseR * 1.12 + 0.16                  /* 底座外沿 + 边距 */
+  );
 
   /* 2.5.1 竖屏/窄屏拉远机位：手机竖屏也能看到神像全身与底座 */
   const aspect = window.innerWidth / window.innerHeight;

@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<!-- 声明本站即深色：阻止安卓 Chrome/微信夜间模式强制反色（字底黑块问题） -->
 <script>
 /* 设备探测：渲染前打标到 <html>，CSS/JS 双通道取用（window.__device） */
 (function () {
@@ -24,6 +26,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='none' stroke='%23d8b46a' stroke-width='4'/%3E%3Cpath d='M50 10 L82 68 L18 68 Z' fill='none' stroke='%23d8b46a' stroke-width='4'/%3E%3C/svg%3E" />
 <style>
   :root {
+    color-scheme: dark;   /* 与 <meta> 双保险：表单控件/滚动条也按深色渲染 */
     --gold: #d8b46a;
     --gold-dim: rgba(216,180,106,.28);
     --violet: #9d7bff;
@@ -612,6 +615,11 @@
   html.is-touch body.garden-mode #stage-home button,
   html.is-touch body.garden-mode #stage-home textarea,
   html.is-touch body.garden-mode #stage-home input { pointer-events: auto; }
+  /* 触屏主界面：整面板可触才能上下滑动（桌面保持 pointer-events:none 让位拖拽） */
+  html.is-touch #stage-home { pointer-events: auto; }
+  html.is-touch body.garden-mode #stage-home { pointer-events: none; }
+  /* iOS 输入框字号 <16px 聚焦会自动缩放页面 */
+  html.is-mobile #question { font-size: 16px; }
   @media (prefers-reduced-motion: reduce) {
     .cursor { animation: none; }
     .ritual-prompt { animation: none; }
@@ -731,7 +739,7 @@
         </div></li>
         <li><b>肆</b><div>
           <h4>集曜成方</h4>
-          <p>每天的第一签会凝成当日曜方，落在神像四周。拖动堆叠（按 R 或双指轻点转向），点按翻阅其中签录。亦可择日而问，集齐七曜。</p>
+          <p>每天的第一签会凝成当日曜方，落在小克四周。拖动堆叠（按 R 或双指轻点转向），展台之上、神像脚边皆可安放；点按翻阅其中签录。亦可择日而问，集齐七曜。</p>
         </div></li>
       </ol>
       <button id="coach-ok">进 入 祭 坛</button>
@@ -758,7 +766,7 @@
         <p class="sub">七日之曜 · 一方一世界 —— 已集 <b id="cube-dex-n">0 / 8</b></p>
       </div>
       <div class="yao-grid" id="yao-grid"></div>
-      <p class="veil-meta" style="text-align:center;margin-top:34px">每日首签入列当日曜方 · 宝石偶随签落 · 拖拽方块可自由堆叠 · 点按方块翻阅其中签录</p>
+      <p class="veil-meta" style="text-align:center;margin-top:34px">每日首签入列当日曜方 · 宝石偶随签落 · 拖拽方块自由堆叠（展台与四周皆可放） · 点按方块翻阅其中签录</p>
       <p style="text-align:center;margin-top:14px"><button class="veil-back" id="layout-reset" style="margin:0">拂 平 重 排</button></p>
     </div>
   </section>
