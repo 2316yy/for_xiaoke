@@ -357,6 +357,44 @@ function selectMood(k) {
 }
 selectMood(currentMood);
 
+/* ============ 2.6 手机端半展许愿抽屉 ============ */
+(function () {
+  const homeSheet = document.getElementById('stage-home');
+  const sheetToggle = document.getElementById('sheet-toggle');
+  if (!homeSheet || !sheetToggle) return;
+  const gripLabel = sheetToggle.querySelector('.grip-label');
+  const mobileLayout = () => window.matchMedia('(max-width: 820px)').matches;
+
+  function setSheet(open) {
+    homeSheet.classList.toggle('sheet-open', open);
+    sheetToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    sheetToggle.setAttribute('aria-label', open ? '收起许愿面板' : '展开许愿面板');
+    if (gripLabel) gripLabel.textContent = open ? '收 起' : '展 开';
+  }
+
+  sheetToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    setSheet(!homeSheet.classList.contains('sheet-open'));
+    if (window.__audio && window.__audio.tick) window.__audio.tick();
+  });
+
+  /* 叩问后收起，仪式结束回到主页时画面不被面板占据 */
+  askBtn.addEventListener('click', () => setSheet(false));
+
+  /* 手机端聚焦输入时自动展开，避免软键盘遮住输入区域 */
+  questionEl.addEventListener('focus', () => {
+    if (mobileLayout()) setSheet(true);
+  });
+
+  /* 点场景或面板外任意处收回，把画面让给神像 */
+  document.addEventListener('pointerdown', (e) => {
+    if (!homeSheet.classList.contains('sheet-open')) return;
+    if (homeSheet.contains(e.target)) return;
+    setSheet(false);
+    homeSheet.scrollTop = 0;
+  }, { passive: true });
+})();
+
 /* ============ 声音 ============ */
 const unlockAudio = () => { if (window.__audio) window.__audio.unlock(); };
 window.addEventListener('pointerdown', unlockAudio, { once: true });
