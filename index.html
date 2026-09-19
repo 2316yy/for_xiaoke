@@ -23,6 +23,7 @@
 })();
 </script>
 <title>向克苏鲁许愿 · 集曜 2.5</title>
+<link rel="preload" href="./小克1.1.glb" as="fetch" type="model/gltf-binary" crossorigin="anonymous" fetchpriority="high" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='none' stroke='%23d8b46a' stroke-width='4'/%3E%3Cpath d='M50 10 L82 68 L18 68 Z' fill='none' stroke='%23d8b46a' stroke-width='4'/%3E%3C/svg%3E" />
 <style>
   :root {
@@ -184,14 +185,17 @@
     display: block; margin-bottom: 8px; text-shadow: var(--sh);
   }
 
-  /* 2.6 手机端半展抽屉拖拽手柄（桌面隐藏） */
+  /* 2.6 手机端许愿抽屉拖拽手柄（桌面隐藏） */
   .sheet-grip {
     display: none;
-    width: 100%; padding: 8px 0 7px;
-    align-items: center; justify-content: center; gap: 10px;
-    cursor: pointer; touch-action: manipulation;
+    width: 100%; align-items: center; justify-content: center; gap: 10px;
     background: linear-gradient(180deg, rgba(8,8,16,.9), rgba(8,8,16,.45) 70%, transparent);
     transition: opacity .3s;
+  }
+  .sheet-grip-main {
+    display: flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 10px;
+    min-width: 0; padding: 8px 0 7px;
+    cursor: pointer; touch-action: manipulation;
   }
   .sheet-grip .grip-bar {
     width: 42px; height: 3px; border-radius: 999px;
@@ -212,9 +216,39 @@
     transform: rotate(180deg) translateY(1px);
   }
   .sheet-grip:hover .grip-bar,
-  .sheet-grip:active .grip-bar { background: var(--gold); box-shadow: 0 0 12px rgba(216,180,106,.45); }
+  .sheet-grip-main:active .grip-bar { background: var(--gold); box-shadow: 0 0 12px rgba(216,180,106,.45); }
   .sheet-grip:hover .grip-label,
-  .sheet-grip:active .grip-label { color: var(--gold); }
+  .sheet-grip-main:active .grip-label { color: var(--gold); }
+  .sheet-minimize {
+    display: none; flex: 0 0 auto;
+    width: 32px; height: 32px; padding: 0; border-radius: 50%;
+    align-items: center; justify-content: center;
+    color: var(--faint); font-size: 13px; line-height: 1;
+    cursor: pointer; transition: all .3s; text-shadow: var(--sh);
+  }
+  .sheet-minimize:hover { color: var(--gold); background: rgba(216,180,106,.1); }
+
+  /* 完全收起后的“许愿”浮标 */
+  .sheet-reopen {
+    position: fixed; left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(10px);
+    z-index: 13; display: none;
+    align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 16px; border-radius: 999px;
+    font-size: 11px; letter-spacing: .24em; color: var(--gold);
+    background: rgba(10,10,20,.62); border: 1px solid rgba(216,180,106,.38);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    cursor: pointer; opacity: 0; pointer-events: none;
+    transition: opacity .35s, transform .35s; text-shadow: var(--sh);
+  }
+  .sheet-reopen.on {
+    display: inline-flex; opacity: 1;
+    transform: translateX(-50%) translateY(0); pointer-events: auto;
+  }
+  .sheet-reopen:hover { background: rgba(216,180,106,.14); border-color: rgba(216,180,106,.6); }
+  body.ritual-mode .sheet-reopen,
+  body.garden-mode .sheet-reopen { opacity: 0; pointer-events: none; }
 
   .q-wrap { position: relative; }
   #question {
@@ -572,12 +606,17 @@
       max-height: min(66vh, calc(100vh - 84px));
       max-height: min(66dvh, calc(100dvh - 84px));
     }
+    #stage-home.sheet-closed {
+      transform: translateY(calc(100% + 18px));
+      opacity: 0;
+    }
 
     #stage-home .sheet-grip {
       display: flex; order: 0;
       position: sticky; top: 0; z-index: 4;
       width: calc(100% + 28px); margin: 0 -14px 2px;
     }
+    #stage-home .sheet-minimize { display: inline-flex; }
     #stage-home > .label { display: none; }
     #stage-home > * { flex: 0 0 auto; }
 
@@ -629,7 +668,6 @@
       background: linear-gradient(180deg, rgba(8,8,16,.86), rgba(8,8,16,.94));
     }
     #stage-home.sheet-open { max-height: none; }
-    #stage-home .sheet-grip { display: none; }
     #stage-home #question { min-height: 46px; font-size: 15px; line-height: 1.6; }
     #stage-home #moods { margin-top: 8px; }
     #stage-home .foot { font-size: 8.5px; }
@@ -765,6 +803,7 @@
   html.is-touch body.garden-mode #stage-home input { pointer-events: auto; }
   /* 触屏主界面：整面板可触才能上下滑动（桌面保持 pointer-events:none 让位拖拽） */
   html.is-touch #stage-home { pointer-events: auto; }
+  html.is-touch #stage-home.sheet-closed { pointer-events: none; }
   html.is-touch body.garden-mode #stage-home { pointer-events: none; }
   /* iOS 输入框字号 <16px 聚焦会自动缩放页面 */
   html.is-mobile #question { font-size: 16px; }
@@ -817,9 +856,12 @@
   <div class="hint"><b>拖拽</b> 旋转 &nbsp;·&nbsp; <b>滚轮</b> 缩放 &nbsp;·&nbsp; 拖曜方堆叠（<b>R</b> 旋转）&nbsp;·&nbsp; 点曜方翻签录 &nbsp;·&nbsp; <b>集曜</b> 俯看方块</div>
 
   <section id="stage-home">
-    <button class="sheet-grip" id="sheet-toggle" aria-label="展开许愿面板" aria-expanded="false">
-      <span class="grip-bar"></span><span class="grip-label">展 开</span>
-    </button>
+    <div class="sheet-grip">
+      <button class="sheet-grip-main" id="sheet-toggle" type="button" aria-label="展开许愿面板" aria-expanded="false">
+        <span class="grip-bar"></span><span class="grip-label">展 开</span>
+      </button>
+      <button class="sheet-minimize" id="sheet-minimize" type="button" aria-label="完全收起许愿面板">✕</button>
+    </div>
 
     <span class="label">你 的 困 惑</span>
     <div class="q-wrap">
@@ -845,6 +887,8 @@
       本结果由随机数与虚构文本生成，仅供娱乐与自我观照，不构成任何现实建议。
     </p>
   </section>
+
+  <button class="sheet-reopen" id="sheet-reopen" type="button" aria-label="展开许愿面板">◌ 许 愿</button>
 
   <section id="stage-ritual">
     <div class="ritual-whispers" id="whispers"></div>

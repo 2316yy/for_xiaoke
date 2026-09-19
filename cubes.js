@@ -164,7 +164,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
 
     /* 宝石的星尘 */
     if (key === 'gem') {
-      const n = 42;
+      const n = (window.__device && window.__device.mobile) ? 26 : 42;
       const pos = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;

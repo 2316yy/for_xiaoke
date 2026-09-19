@@ -28,9 +28,13 @@ const app = document.getElementById('app');
 const loaderEl = document.getElementById('loader');
 const loadText = document.getElementById('load-text');
 
-/* ---------- 渲染器 ---------- */
+/* ---------- 渲染器（2.6 移动端画质档：DPR / 阴影 / 粒子量下调） ---------- */
+const IS_MOBILE_DEVICE = !!(window.__device && window.__device.mobile);
+const DPR_CAP = IS_MOBILE_DEVICE ? 1.5 : 2;
+const SHADOW_SIZE = IS_MOBILE_DEVICE ? 1024 : 2048;
+const starCount = (n) => Math.max(40, Math.round(n * (IS_MOBILE_DEVICE ? 0.68 : 1)));
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_CAP));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -294,7 +298,7 @@ function makeStars({ count, radius, yRange, riseSpeed, size, colors, shell = fal
 }
 
 const risingStars = makeStars({
-  count: 340, radius: [1.3, 3.2], yRange: 3.6, riseSpeed: 0.16,
+  count: starCount(340), radius: [1.3, 3.2], yRange: 3.6, riseSpeed: 0.16,
   size: [0.015, 0.05],
   colors: [PALETTE.gold, PALETTE.violet, PALETTE.ice, PALETTE.white],
   opacity: 0.85,
@@ -303,7 +307,7 @@ risingStars.position.y = -0.18;
 scene.add(risingStars);
 
 const orbitStars = makeStars({
-  count: 70, radius: [2.15, 2.45], yRange: 0.35, riseSpeed: 0.02,
+  count: starCount(70), radius: [2.15, 2.45], yRange: 0.35, riseSpeed: 0.02,
   size: [0.03, 0.08],
   colors: [PALETTE.gold, PALETTE.white],
   opacity: 0.9,
@@ -315,7 +319,7 @@ orbitGroup.position.y = 1.15;
 scene.add(orbitGroup);
 
 const farStars = makeStars({
-  count: 500, radius: 55, yRange: 1, riseSpeed: 0,
+  count: starCount(500), radius: 55, yRange: 1, riseSpeed: 0,
   size: [0.15, 0.45],
   colors: [PALETTE.white, PALETTE.ice, PALETTE.violet],
   shell: true, opacity: 0.5,
@@ -331,7 +335,7 @@ scene.add(hemi);
 const keyLight = new THREE.SpotLight(0xfff2dd, 14, 30, Math.PI / 5.5, 0.45, 1.6);
 keyLight.position.set(3.6, 6.2, 2.8);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
 keyLight.shadow.bias = -0.0004;
 scene.add(keyLight);
 

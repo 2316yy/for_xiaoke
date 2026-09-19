@@ -43,16 +43,54 @@
   const GEM_CHANCE = 0.05;   /* 每签 5%：深渊把私藏的宝石一并丢给你（未持有宝石时） */
   const LS_KEY = 'cth_dex_v1';
 
-  /* ============ 持久化 ============ */
+  /* ============ 持久化（含旧档清洗：坏 layout / 坏 draws 不崩 UI） ============ */
   const blank = () => ({ v: 1, cubes: {}, draws: [], layout: {} });
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  function sanitizeState(p) {
+    const s = blank();
+    if (!p || typeof p !== 'object') return s;
+
+    if (p.cubes && typeof p.cubes === 'object') {
+      ALL_CUBES.forEach((c) => {
+        const v = p.cubes[c.key];
+        if (v && typeof v === 'object') {
+          s.cubes[c.key] = { got: Number.isFinite(v.got) ? v.got : Date.now() };
+        }
+      });
+    }
+
+    if (Array.isArray(p.draws)) {
+      s.draws = p.draws.filter((d) => d && typeof d === 'object'
+        && Number.isFinite(d.n) && d.n >= 1 && d.n <= 64
+        && Number.isFinite(d.ts)
+        && Number.isFinite(d.wday) && d.wday >= 0 && d.wday <= 6
+        && typeof d.grade === 'string'
+        && typeof d.mood === 'string'
+        && typeof d.target === 'string'
+      ).slice(-2000);
+    }
+
+    if (p.layout && typeof p.layout === 'object') {
+      ALL_CUBES.forEach((c) => {
+        const v = p.layout[c.key];
+        if (!Array.isArray(v) || v.length < 4) return;
+        const nums = v.slice(0, 4).map(Number);
+        if (!nums.every(Number.isFinite)) return;
+        s.layout[c.key] = [
+          clamp(Math.round(nums[0]), -16, 16),
+          clamp(Math.round(nums[1]), -16, 16),
+          clamp(Math.round(nums[2]), 0, 8),
+          ((Math.round(nums[3]) % 4) + 4) % 4,
+        ];
+      });
+    }
+    return s;
+  }
   let state = blank();
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p && p.cubes && p.draws) state = Object.assign(blank(), p);
-    }
-  } catch (e) { /* 隐私模式等：内存态兜底 */ }
+    if (raw) state = sanitizeState(JSON.parse(raw));
+  } catch (e) { /* 隐私模式 / 坏 JSON：内存态兜底 */ }
   function save() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
   }

@@ -366,32 +366,69 @@ function selectMood(k) {
 }
 selectMood(currentMood);
 
-/* ============ 2.6 手机端半展许愿抽屉 ============ */
+/* ============ 2.6 手机端许愿抽屉（半展 / 展开 / 完全收起） ============ */
 (function () {
   const homeSheet = document.getElementById('stage-home');
   const sheetToggle = document.getElementById('sheet-toggle');
   if (!homeSheet || !sheetToggle) return;
   const gripLabel = sheetToggle.querySelector('.grip-label');
+  const minimizeBtn = document.getElementById('sheet-minimize');
+  const reopenBtn = document.getElementById('sheet-reopen');
   const sheetMQ = window.matchMedia('(max-width: 820px), (max-height: 560px) and (pointer: coarse)');
   const mobileLayout = () => sheetMQ.matches;
   let gripTouchY = null;
   let gripSwiped = false;
 
-  function setSheet(open) {
-    homeSheet.classList.toggle('sheet-open', open);
+  function updateSheetChrome() {
+    const open = homeSheet.classList.contains('sheet-open');
+    const closed = homeSheet.classList.contains('sheet-closed');
     sheetToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     sheetToggle.setAttribute('aria-label', open ? '收起许愿面板' : '展开许愿面板');
     if (gripLabel) gripLabel.textContent = open ? '收 起' : '展 开';
+    if (reopenBtn) reopenBtn.classList.toggle('on', closed && mobileLayout());
+  }
+  function showSheet(expanded) {
+    homeSheet.classList.remove('sheet-closed');
+    homeSheet.classList.toggle('sheet-open', !!expanded);
+    updateSheetChrome();
+  }
+  function hideSheet() {
+    homeSheet.classList.remove('sheet-open');
+    homeSheet.classList.add('sheet-closed');
+    updateSheetChrome();
+  }
+  function toggleSheet() {
+    if (homeSheet.classList.contains('sheet-closed')) showSheet(false);
+    else if (homeSheet.classList.contains('sheet-open')) hideSheet();   /* 展开态点“收起”→ 完全收起 */
+    else showSheet(true);
+  }
+  function sheetTick() {
+    if (window.__audio && window.__audio.tick) window.__audio.tick();
   }
 
   sheetToggle.addEventListener('click', (e) => {
     e.preventDefault();
     if (gripSwiped) { gripSwiped = false; return; }
-    setSheet(!homeSheet.classList.contains('sheet-open'));
-    if (window.__audio && window.__audio.tick) window.__audio.tick();
+    toggleSheet();
+    sheetTick();
   });
 
-  /* 触屏加一点抽屉手感：手柄上滑展开、下滑收起，轻点仍走 click */
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      hideSheet();
+      sheetTick();
+    });
+  }
+  if (reopenBtn) {
+    reopenBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showSheet(false);
+      sheetTick();
+    });
+  }
+
+  /* 触屏抽屉手感：手柄上滑展开、下滑完全收起；轻点仍走 click */
   sheetToggle.addEventListener('touchstart', (e) => {
     if (!e.touches || !e.touches.length) return;
     gripTouchY = e.touches[0].clientY;
@@ -404,25 +441,28 @@ selectMood(currentMood);
     if (Math.abs(dy) < 14) return;
     gripSwiped = true;
     setTimeout(() => { gripSwiped = false; }, 500);
-    setSheet(dy < 0);
-    if (window.__audio && window.__audio.tick) window.__audio.tick();
+    if (dy < 0) showSheet(true);
+    else hideSheet();
+    sheetTick();
   }, { passive: false });
 
-  /* 叩问后收起，仪式结束回到主页时画面不被面板占据 */
-  askBtn.addEventListener('click', () => setSheet(false));
+  /* 叩问后完全收起；回到主页只剩“许愿”浮标，把画面完整让给神像 */
+  askBtn.addEventListener('click', () => hideSheet());
 
   /* 手机端聚焦输入时自动展开，避免软键盘遮住输入区域 */
   questionEl.addEventListener('focus', () => {
-    if (mobileLayout()) setSheet(true);
+    if (mobileLayout()) showSheet(true);
   });
 
-  /* 点场景或面板外任意处收回，把画面让给神像 */
+  /* 点场景或面板外任意处：展开态直接完全收起；半展态保留，避免抢场景拖拽 */
   document.addEventListener('pointerdown', (e) => {
-    if (!homeSheet.classList.contains('sheet-open')) return;
+    if (homeSheet.classList.contains('sheet-closed')) return;
     if (homeSheet.contains(e.target)) return;
-    setSheet(false);
-    homeSheet.scrollTop = 0;
+    if (homeSheet.classList.contains('sheet-open')) hideSheet();
   }, { passive: true });
+
+  if (sheetMQ.addEventListener) sheetMQ.addEventListener('change', updateSheetChrome);
+  updateSheetChrome();
 })();
 
 /* ============ 声音 ============ */
