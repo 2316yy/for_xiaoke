@@ -100,3 +100,16 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 - 设备探测：`html.is-touch / is-mobile`（`index.html` 头部内联脚本，`window.__device`）。
 - 深色模式：`color-scheme: dark`（meta+CSS）防强制反色黑块。
 - 布局/签录持久化：`localStorage: cth_dex_v1`。
+
+## 七、64 签文案怎么改（人类入口）
+
+- **唯一文案源文件**：根目录 `LOTS_COPY.md`（纯文本 / Markdown，64 签与六档判词都在里面，直接读改）。
+- **改完必须重建**：仓库根目录运行 `sh build-lots.sh`，它读取 `LOTS_COPY.md`，生成游戏实际加载的 `lots.js`。
+  - 忘了重建可自检：`sh build-lots.sh --check`（不一致会非 0 退出并提示）。
+  - 构建器：`tools/lots_build.cjs`；自测：`node tools/test_lots_build.cjs`（本机 node 不在 PATH 时，脚本会自动用 `/opt/homebrew/bin/node`）。
+- **不要手改 `lots.js`**：它开头已标注为自动生成，直接改会在下次构建时被覆盖。
+  - 极端情况（`LOTS_COPY.md` 丢失）可用 `node tools/lots_build.cjs --extract > /tmp/lots.md` 从现有 `lots.js` 反向恢复。
+- **改错不会弄坏游戏**：构建器会校验 64 签数量、签号、签级（六档）、主题（六个 key）和每签四句；报错会指到行号，校验不通过不覆盖 `lots.js`。
+- **提交**：`LOTS_COPY.md` 与 `lots.js` 要一起提交；`push.sh` 的 `git add -A` 会自动带上。
+- 卦名会驱动结果页的卦象图标（`game.js` 的 `hexLines`）：改卦名不会崩，但名称不符合六十四卦命名时图标会消失，尽量别随意改。
+- `grade` 会影响结果页“理智消耗”，区间数值在 `tools/lots_build.cjs` 顶部 `SAN_RANGE`；那是数值配置，不属于文案。

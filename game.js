@@ -255,6 +255,10 @@ const MOOD_GROUPS = [
 
 const GLYPHS = ['🜏','🜂','🜃','🜄','🜁','🜍','🜔','🜚','🝳','⚶','☍','🜛'];
 
+/* 系统的“减少动态效果”偏好：签诗不再逐字打 */
+const REDUCED_UI = !!(window.matchMedia
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
 /* ============ 工具 ============ */
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
@@ -337,6 +341,7 @@ MOOD_GROUPS.forEach((g) => {
     b.className = 'mood' + (k === currentMood ? ' sel' : '');
     b.style.setProperty('--c', m.color);
     b.dataset.mood = k;
+    b.setAttribute('aria-pressed', k === currentMood ? 'true' : 'false');
     b.innerHTML = '<i class="dot"></i>' + m.name;
     b.onclick = () => selectMood(k);
     row.appendChild(b);
@@ -348,7 +353,11 @@ MOOD_GROUPS.forEach((g) => {
 
 function selectMood(k) {
   currentMood = k;
-  [...moodsEl.querySelectorAll('.mood')].forEach(c => c.classList.toggle('sel', c.dataset.mood === k));
+  [...moodsEl.querySelectorAll('.mood')].forEach((c) => {
+    const on = c.dataset.mood === k;
+    c.classList.toggle('sel', on);
+    c.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
   const m = MOODS[k];
   document.documentElement.style.setProperty('--mood', m.color);
   if (window.__ritual && window.__ritual.setMood) window.__ritual.setMood(m.color);
@@ -363,7 +372,10 @@ selectMood(currentMood);
   const sheetToggle = document.getElementById('sheet-toggle');
   if (!homeSheet || !sheetToggle) return;
   const gripLabel = sheetToggle.querySelector('.grip-label');
-  const mobileLayout = () => window.matchMedia('(max-width: 820px)').matches;
+  const sheetMQ = window.matchMedia('(max-width: 820px), (max-height: 560px) and (pointer: coarse)');
+  const mobileLayout = () => sheetMQ.matches;
+  let gripTouchY = null;
+  let gripSwiped = false;
 
   function setSheet(open) {
     homeSheet.classList.toggle('sheet-open', open);
@@ -374,9 +386,27 @@ selectMood(currentMood);
 
   sheetToggle.addEventListener('click', (e) => {
     e.preventDefault();
+    if (gripSwiped) { gripSwiped = false; return; }
     setSheet(!homeSheet.classList.contains('sheet-open'));
     if (window.__audio && window.__audio.tick) window.__audio.tick();
   });
+
+  /* 触屏加一点抽屉手感：手柄上滑展开、下滑收起，轻点仍走 click */
+  sheetToggle.addEventListener('touchstart', (e) => {
+    if (!e.touches || !e.touches.length) return;
+    gripTouchY = e.touches[0].clientY;
+  }, { passive: true });
+  sheetToggle.addEventListener('touchend', (e) => {
+    if (gripTouchY == null) return;
+    const t = e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null;
+    const dy = (t ? t.clientY : gripTouchY) - gripTouchY;
+    gripTouchY = null;
+    if (Math.abs(dy) < 14) return;
+    gripSwiped = true;
+    setTimeout(() => { gripSwiped = false; }, 500);
+    setSheet(dy < 0);
+    if (window.__audio && window.__audio.tick) window.__audio.tick();
+  }, { passive: false });
 
   /* 叩问后收起，仪式结束回到主页时画面不被面板占据 */
   askBtn.addEventListener('click', () => setSheet(false));
@@ -900,6 +930,10 @@ function typePoem(lines) {
   if (!el) return;
   el.innerHTML = '';
   const text = lines.join('\n');
+  if (REDUCED_UI) {   /* 减少动态效果：直接给全文，不逐字打 */
+    el.innerHTML = text.replace(/\n/g, '<br>');
+    return;
+  }
   let i = 0;
   let done = false;
   const timers = [];

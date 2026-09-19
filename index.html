@@ -144,20 +144,39 @@
   body.garden-mode #stage-home:hover input { pointer-events: auto; }
   #stage-home::-webkit-scrollbar { display: none; }
   #stage-home:hover { translate: 0 0; }
-  /* 2.5.3 花园模式显式出口：修「进花园后回不到主页」（原 hover 恢复在
-     pointer-events:none 下几乎不可用，触屏更是完全没有 hover） */
-  #exit-garden {
-    position: fixed; top: 70px; right: 22px; z-index: 40;
-    display: none; align-items: center; gap: 6px;
-    padding: 10px 16px; border-radius: 999px;
-    font-size: 12px; letter-spacing: .22em; color: var(--gold);
-    background: rgba(10,10,20,.6); border: 1px solid rgba(216,180,106,.5);
+  /* 2.6 全局导航：集曜 / 签谱与花园出口同级，不再埋在许愿表单里 */
+  .global-nav {
+    position: fixed; top: 62px; right: 30px; z-index: 40;
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 8px; flex-wrap: wrap; max-width: calc(100vw - 44px);
+    pointer-events: none;
+    transition: opacity .55s, transform .55s;
+  }
+  .global-nav > * { pointer-events: auto; }
+  .nav-pill {
+    display: inline-flex; align-items: baseline; gap: 7px;
+    padding: 9px 14px; border-radius: 999px;
+    font-size: 12px; letter-spacing: .2em; color: var(--dim);
+    background: rgba(10,10,20,.55); border: 1px solid rgba(216,180,106,.26);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     cursor: pointer; transition: all .3s; text-shadow: var(--sh);
+  }
+  .nav-pill b { color: var(--gold); font-weight: 600; letter-spacing: .08em; }
+  .nav-pill:hover {
+    color: var(--gold); border-color: rgba(216,180,106,.5);
+    background: rgba(216,180,106,.12);
+    box-shadow: 0 0 18px rgba(216,180,106,.22);
+  }
+  /* 花园出口与集曜/签谱同属全局导航；默认隐藏，进花园才出现 */
+  #exit-garden {
+    display: none; align-items: center; gap: 6px;
+    color: var(--gold); border-color: rgba(216,180,106,.5);
   }
   body.garden-mode #exit-garden { display: inline-flex; animation: exitPop .35s ease both; }
   #exit-garden:hover { background: rgba(216,180,106,.16); box-shadow: 0 0 18px rgba(216,180,106,.35); }
   @keyframes exitPop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  body.ritual-mode .global-nav { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+  body.ritual-mode .global-nav > * { pointer-events: none; }
   body.ritual-mode #stage-home { opacity: 0; transform: translateX(-28px); pointer-events: none; }
 
   #stage-home .label {
@@ -183,6 +202,14 @@
   .sheet-grip .grip-label {
     font-size: 9px; letter-spacing: .28em; color: var(--faint);
     text-shadow: var(--sh); transition: color .3s;
+  }
+  .sheet-grip .grip-label::after {
+    content: '▾'; display: inline-block; margin-left: 6px;
+    font-size: 8px; line-height: 1; transform: translateY(-1px);
+    transition: transform .35s;
+  }
+  #stage-home.sheet-open .sheet-grip .grip-label::after {
+    transform: rotate(180deg) translateY(1px);
   }
   .sheet-grip:hover .grip-bar,
   .sheet-grip:active .grip-bar { background: var(--gold); box-shadow: 0 0 12px rgba(216,180,106,.45); }
@@ -509,12 +536,14 @@
   }
   .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  @media (max-width: 820px) {
+  @media (max-width: 820px), (max-height: 560px) and (pointer: coarse) {
     .title { top: 18px; left: 18px; }
     .title h1 { font-size: 17px; letter-spacing: 5px; }
     .title p { display: none; }
     .top-right { top: 16px; right: 16px; }
     .hint { display: none; }
+    .global-nav { top: 56px; right: 16px; max-width: calc(100vw - 32px); }
+    .nav-pill { padding: 8px 11px; font-size: 11px; letter-spacing: .16em; min-height: 44px; }
 
     /* 2.6 半展抽屉：默认约 32vh（矮屏最低 230px），展开 66vh；只保留必要文案 */
     #stage-home {
@@ -522,6 +551,7 @@
       right: max(10px, calc(50vw - 280px));
       width: auto; bottom: 0;
       max-height: clamp(230px, 32vh, 320px);
+      max-height: clamp(230px, 32dvh, 320px);
       padding: 0 14px calc(8px + env(safe-area-inset-bottom));
       display: flex; flex-direction: column;
       overflow-y: auto; overscroll-behavior: contain;
@@ -538,7 +568,10 @@
       transition: opacity .7s, transform .7s, translate .5s ease-out,
                   max-height .45s cubic-bezier(.22,.8,.3,1);
     }
-    #stage-home.sheet-open { max-height: min(66vh, calc(100vh - 84px)); }
+    #stage-home.sheet-open {
+      max-height: min(66vh, calc(100vh - 84px));
+      max-height: min(66dvh, calc(100dvh - 84px));
+    }
 
     #stage-home .sheet-grip {
       display: flex; order: 0;
@@ -572,12 +605,34 @@
     #stage-home #ask { order: 3; margin-top: 10px; }
     #stage-home .date-row { order: 4; margin-top: 8px; }
     #stage-home .date-step { padding: 8px 10px; font-size: 14px; }
-    #stage-home .stats-row { order: 5; margin-top: 10px; gap: 22px; }
     #stage-home .foot { order: 6; margin-top: 10px; font-size: 9px; line-height: 1.8; opacity: .9; }
 
     .hex-name { font-size: 26px; }
     .yao { width: 46px; }
     .skip-ritual { right: 18px; bottom: 18px; }
+  }
+
+  /* 2.6 触屏横屏：面板移到右侧，画面中央留给神像 */
+  @media (max-height: 560px) and (pointer: coarse) {
+    .global-nav {
+      top: 56px; left: 18px; right: auto;
+      justify-content: flex-start; max-width: min(46vw, 360px);
+    }
+    #stage-home {
+      left: auto; right: max(10px, env(safe-area-inset-right, 0px));
+      top: 56px; bottom: max(10px, env(safe-area-inset-bottom, 0px));
+      width: min(360px, 46vw);
+      max-height: none;
+      border: 1px solid rgba(216,180,106,.18);
+      border-bottom: 1px solid rgba(216,180,106,.18);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(8,8,16,.86), rgba(8,8,16,.94));
+    }
+    #stage-home.sheet-open { max-height: none; }
+    #stage-home .sheet-grip { display: none; }
+    #stage-home #question { min-height: 46px; font-size: 15px; line-height: 1.6; }
+    #stage-home #moods { margin-top: 8px; }
+    #stage-home .foot { font-size: 8.5px; }
   }
 
   /* ================= game2.       5    ================= */
@@ -695,12 +750,12 @@
     #ask { min-height: 50px; }
     .date-step { padding: 10px 14px; }
     .mood { min-height: 44px; }
-    .stats-row .stat { min-height: 44px; }
+    .nav-pill { min-height: 44px; }
     .btns button { min-height: 46px; }
     .veil-close { top: 14px; right: 16px; padding: 14px; }
     .card { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
     .again-date-row { flex-wrap: wrap; row-gap: 12px; }
-    #exit-garden { top: 66px; right: 18px; min-height: 44px; padding: 12px 18px; font-size: 12.5px; }
+    #exit-garden { padding: 10px 14px; font-size: 12px; }
   }
   /* 触屏没有 hover：花园模式下面板保持可点，轻点面板本体切换提亮 */
   html.is-touch body.garden-mode #stage-home { opacity: .42; translate: 0 0; transition: opacity .3s; }
@@ -753,7 +808,11 @@
     <button id="help" class="icon-btn" aria-label="祭坛须知">?</button>
   </div>
 
-  <button id="exit-garden" aria-label="回到许愿界面">‹ 回 到 许 愿</button>
+  <nav class="global-nav" id="global-nav" aria-label="图鉴与场景导航">
+    <button class="nav-pill" id="stat-cubes" type="button" aria-label="打开集曜图鉴">集 曜 <b id="stat-cubes-n">0 / 8</b></button>
+    <button class="nav-pill" id="stat-lots" type="button" aria-label="打开签谱图鉴">签 谱 <b id="stat-lots-n">0 / 64</b></button>
+    <button class="nav-pill" id="exit-garden" type="button" aria-label="回到许愿界面">‹ 回 到 许 愿</button>
+  </nav>
 
   <div class="hint"><b>拖拽</b> 旋转 &nbsp;·&nbsp; <b>滚轮</b> 缩放 &nbsp;·&nbsp; 拖曜方堆叠（<b>R</b> 旋转）&nbsp;·&nbsp; 点曜方翻签录 &nbsp;·&nbsp; <b>集曜</b> 俯看方块</div>
 
@@ -764,7 +823,7 @@
 
     <span class="label">你 的 困 惑</span>
     <div class="q-wrap">
-      <textarea id="question" placeholder="写下你的困惑、你的疲惫、你不敢问出口的事……"></textarea>
+      <textarea id="question" aria-label="你的困惑" placeholder="写下你的困惑、你的疲惫、你不敢问出口的事……"></textarea>
       <span class="qcount" id="qcount">0 / 120</span>
     </div>
 
@@ -780,11 +839,6 @@
     </div>
 
     <button id="ask">叩 问 深 渊 · 求 一 签</button>
-
-    <div class="stats-row">
-      <button class="ghost stat" id="stat-cubes">集 曜 <b id="stat-cubes-n">0 / 8</b></button>
-      <button class="ghost stat" id="stat-lots">签 谱 <b id="stat-lots-n">0 / 64</b></button>
-    </div>
 
     <p class="foot">
       宇宙不会因此改变。但你可以选择如何存在。<br>

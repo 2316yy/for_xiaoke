@@ -92,8 +92,9 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
     return g;
   }
 
-  /* ---------- GLB 装载与整形 ---------- */
-  function dressCube(key, meta, entry) {
+  /* ---------- GLB 装载与整形（失败退避重试 2 次） ---------- */
+  function dressCube(key, meta, entry, attempt = 0) {
+    if (!cubes.has(key)) return;
     loader.load('./assets/cubes/' + meta.file, (gltf) => {
       if (!cubes.has(key)) return;              // 已移除
       const model = gltf.scene;
@@ -117,8 +118,16 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
       entry.loadState = 'ok';
       /* 到货微光 */
       pop(entry, 1.1);
-    }, undefined, () => {
-      /* 失败：线框坯继续服役 */
+    }, undefined, (err) => {
+      if (!cubes.has(key)) return;
+      if (attempt < 2) {
+        const wait = 700 * (attempt + 1);   /* 0.7s / 1.4s */
+        console.warn(`[cube] ${key} 模型加载失败，${wait}ms 后重试：`, err);
+        setTimeout(() => dressCube(key, meta, entry, attempt + 1), wait);
+        return;
+      }
+      /* 最终失败：线框坯继续服役 */
+      console.warn(`[cube] ${key} 模型加载失败，保留线框坯：`, err);
       entry.loadState = 'fail';
     });
   }

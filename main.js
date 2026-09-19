@@ -362,6 +362,12 @@ window.__cubes = garden;
 garden.onClick((key) => { if (window.__dexUi) window.__dexUi.openCube(key); });
 
 const HOME = { pos: new THREE.Vector3(), target: new THREE.Vector3(0, 0.95, 0) };
+let homeViewReady = false;
+function calcHomePosition() {
+  const aspect = window.innerWidth / window.innerHeight;
+  const dist = 4.6 * (aspect < 1 ? Math.min(1.6, 0.72 / aspect) : 1);
+  return new THREE.Vector3(Math.sin(0.6) * dist, 1.75, Math.cos(0.6) * dist);
+}
 const NEAR = { pos: new THREE.Vector3(0.55, 1.5, 3.3), target: new THREE.Vector3(0, 1.02, 0) };
 /* 签卡阶段：target 保持在神像，配合 viewOffset 把神像构图偏右——展台可读签也可旋转 */
 const ASIDE = { pos: new THREE.Vector3(-0.55, 1.5, 3.55), target: new THREE.Vector3(0, 1.0, 0) };
@@ -626,9 +632,7 @@ function placeModel(model) {
   );
 
   /* 2.5.1 竖屏/窄屏拉远机位：手机竖屏也能看到神像全身与底座 */
-  const aspect = window.innerWidth / window.innerHeight;
-  const dist = 4.6 * (aspect < 1 ? Math.min(1.6, 0.72 / aspect) : 1);
-  HOME.pos.set(Math.sin(0.6) * dist, 1.75, Math.cos(0.6) * dist);
+  HOME.pos.copy(calcHomePosition());
   camera.position.copy(HOME.pos);
   controls.target.copy(HOME.target);
   controls.minDistance = 1.6;
@@ -637,6 +641,7 @@ function placeModel(model) {
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.9;
   controls.update();
+  homeViewReady = true;
 
   requestAnimationFrame(() => {
     loaderEl.classList.add('done');
@@ -648,18 +653,30 @@ function placeModel(model) {
   });
 }
 
-new GLTFLoader().load('./小克1.1.glb', (gltf) => {
-  placeModel(gltf.scene);
-}, (xhr) => {
-  if (xhr.total && loadText) {
-    const pct = Math.round((xhr.loaded / xhr.total) * 100);
-    loadText.textContent = `召 唤 中 … ${pct}%`;
-  }
-}, (err) => {
-  console.warn('模型加载失败，以剪影神像兜底：', err);
-  if (loadText) loadText.textContent = '深 渊 以 剪 影 现 身';
-  placeModel(buildFallbackIdol());
-});
+/* 2.6 神像 GLB：弱网失败自动退避重试 2 次，仍失败才降级剪影 */
+const IDOL_MAX_RETRY = 2;
+function loadIdolModel(attempt) {
+  new GLTFLoader().load('./小克1.1.glb', (gltf) => {
+    placeModel(gltf.scene);
+  }, (xhr) => {
+    if (xhr.total && loadText) {
+      const pct = Math.round((xhr.loaded / xhr.total) * 100);
+      loadText.textContent = `召 唤 中 … ${pct}%`;
+    }
+  }, (err) => {
+    if (attempt < IDOL_MAX_RETRY) {
+      const wait = 1000 * (attempt + 1);   /* 1s / 2s */
+      console.warn(`模型加载失败，${wait}ms 后重试（${attempt + 2}/${IDOL_MAX_RETRY + 1}）：`, err);
+      if (loadText) loadText.textContent = `星 路 重 连 … ${attempt + 1}/${IDOL_MAX_RETRY}`;
+      setTimeout(() => loadIdolModel(attempt + 1), wait);
+      return;
+    }
+    console.warn('模型加载失败，以剪影神像兜底：', err);
+    if (loadText) loadText.textContent = '深 渊 以 剪 影 现 身';
+    placeModel(buildFallbackIdol());
+  });
+}
+loadIdolModel(0);
 
 /* ============================================================
  * 主循环
@@ -725,7 +742,29 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  if (ritualPhase === 'reveal') applyResultFraming();   // viewOffset 需随窗口重设
+
+  /* 2.6 屏幕比例变化后按新 aspect 校正主页机位距离，避免转屏后裁切/过小 */
+  if (homeViewReady) {
+    const prevHome = HOME.pos.clone();
+    HOME.pos.copy(calcHomePosition());
+    /* 仪式中先只更新目标机位，回到主页时 calm() 会用到新距离；非仪式中立即保持相对缩放 */
+    if (!ritualActive) {
+      const prevDist = prevHome.distanceTo(HOME.target);
+      const nextDist = HOME.pos.distanceTo(HOME.target);
+      if (prevDist > 0.01 && nextDist > 0.01) {
+        const offset = camera.position.clone().sub(controls.target);
+        if (offset.lengthSq() > 1e-6) {
+          offset.multiplyScalar(nextDist / prevDist);   /* 保留当前方位与相对缩放 */
+          camera.position.copy(controls.target).add(offset);
+        }
+      }
+    }
+  }
+
+  if (ritualPhase === 'reveal') {   // viewOffset 需随窗口重设；跨断点时要清掉旧偏移
+    if (window.innerWidth > 820) applyResultFraming();
+    else clearResultFraming();
+  }
   const s = worldToPixelScale();
   starMaterials.forEach((m) => { m.uniforms.uScale.value = s; });
 });
