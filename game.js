@@ -843,6 +843,19 @@ if (window.__device && window.__device.touch) {
   }
 }
 
+/* 2.5.3 花园模式显式退出：桌面/触屏通用，修「求签后回不到主页」 */
+(function () {
+  const el = document.getElementById('exit-garden');
+  if (!el) return;
+  el.onclick = () => {
+    document.body.classList.remove('garden-mode');
+    const sh = document.getElementById('stage-home');
+    if (sh) sh.classList.remove('peek');
+    if (window.__ritual && window.__ritual.calm) window.__ritual.calm();
+    if (window.__audio && window.__audio.tick) window.__audio.tick();
+  };
+})();
+
 /* 打字机签诗（点击诗行可直接显示全文） */
 function typePoem(lines) {
   const el = document.getElementById('poem');

@@ -144,6 +144,20 @@
   body.garden-mode #stage-home:hover input { pointer-events: auto; }
   #stage-home::-webkit-scrollbar { display: none; }
   #stage-home:hover { translate: 0 0; }
+  /* 2.5.3 花园模式显式出口：修「进花园后回不到主页」（原 hover 恢复在
+     pointer-events:none 下几乎不可用，触屏更是完全没有 hover） */
+  #exit-garden {
+    position: fixed; top: 70px; right: 22px; z-index: 40;
+    display: none; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 999px;
+    font-size: 12px; letter-spacing: .22em; color: var(--gold);
+    background: rgba(10,10,20,.6); border: 1px solid rgba(216,180,106,.5);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    cursor: pointer; transition: all .3s; text-shadow: var(--sh);
+  }
+  body.garden-mode #exit-garden { display: inline-flex; animation: exitPop .35s ease both; }
+  #exit-garden:hover { background: rgba(216,180,106,.16); box-shadow: 0 0 18px rgba(216,180,106,.35); }
+  @keyframes exitPop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
   body.ritual-mode #stage-home { opacity: 0; transform: translateX(-28px); pointer-events: none; }
 
   #stage-home .label {
@@ -608,9 +622,10 @@
     .veil-close { top: 14px; right: 16px; padding: 14px; }
     .card { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
     .again-date-row { flex-wrap: wrap; row-gap: 12px; }
+    #exit-garden { top: 66px; right: 18px; min-height: 44px; padding: 12px 18px; font-size: 12.5px; }
   }
   /* 触屏没有 hover：花园模式下面板保持可点，轻点面板本体切换提亮 */
-  html.is-touch body.garden-mode #stage-home { opacity: .32; translate: 0 0; transition: opacity .3s; }
+  html.is-touch body.garden-mode #stage-home { opacity: .42; translate: 0 0; transition: opacity .3s; }
   html.is-touch body.garden-mode #stage-home.peek { opacity: 1; }
   html.is-touch body.garden-mode #stage-home button,
   html.is-touch body.garden-mode #stage-home textarea,
@@ -659,6 +674,8 @@
     </button>
     <button id="help" class="icon-btn" aria-label="祭坛须知">?</button>
   </div>
+
+  <button id="exit-garden" aria-label="回到许愿界面">‹ 回 到 许 愿</button>
 
   <div class="hint"><b>拖拽</b> 旋转 &nbsp;·&nbsp; <b>滚轮</b> 缩放 &nbsp;·&nbsp; 拖曜方堆叠（<b>R</b> 旋转）&nbsp;·&nbsp; 点曜方翻签录 &nbsp;·&nbsp; <b>集曜</b> 俯看方块</div>
 
