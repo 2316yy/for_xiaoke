@@ -1,0 +1,102 @@
+/* ============================================================
+ * 小红书小工具 Chrome 61 基线回退层
+ *  - 原样式已在内联 <style> 中做了一轮替换（inset / env / min / max / clamp /
+ *    grid-gap / color-mix 兜底）；这里只补行为检测后的 flex 间距与复制浮层。
+ *  - 所有规则都是基线层；现代内核的增强仍叠加在原样式上。
+ * ============================================================ */
+
+#app {
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: radial-gradient(ellipse at 50% 36%, #1a1430 0%, #0b0917 48%, #05060c 100%);
+}
+/* 3D 失败兜底时的 Canvas 2D 星空 */
+canvas.xhs-sky {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%; display: block;
+  pointer-events: none;
+}
+
+/* :focus-visible 是后置能力，基线先保证键盘/点击焦点可见 */
+button:focus, textarea:focus, input:focus {
+  outline: 1px solid rgba(216,180,106,.65);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* flex gap 在 Chrome 61 不生效：用相邻 margin 作基线；
+   现代内核由 xhs-ui.js 加上 supports-flex-gap，恢复 gap 并清掉 margin */
+html:not(.supports-flex-gap) .global-nav > * + * { margin-left: 8px; }
+html:not(.supports-flex-gap) .top-right > * + * { margin-left: 14px; }
+html:not(.supports-flex-gap) .nav-pill > * + * { margin-left: 7px; }
+html:not(.supports-flex-gap) .sheet-grip > * + * { margin-left: 6px; }
+html:not(.supports-flex-gap) .sheet-grip-main > * + * { margin-left: 10px; }
+html:not(.supports-flex-gap) .sheet-reopen > * + * { margin-left: 7px; }
+html:not(.supports-flex-gap) .card .head > * + * { margin-left: 20px; }
+html:not(.supports-flex-gap) .hexagram > * + * { margin-top: 6px; }
+html:not(.supports-flex-gap) .lot-tags > * + * { margin-left: 7px; }
+html:not(.supports-flex-gap) .btns > * + * { margin-left: 26px; }
+html:not(.supports-flex-gap) .coach-steps li > * + * { margin-left: 18px; }
+html:not(.supports-flex-gap) .date-row > * + * { margin-left: 4px; }
+html:not(.supports-flex-gap) .stats-row > * + * { margin-left: 30px; }
+html:not(.supports-flex-gap) .rec > * + * { margin-left: 14px; }
+html:not(.supports-flex-gap) .rec .rtop > * + * { margin-left: 12px; }
+html:not(.supports-flex-gap) .again-date-row > * + * { margin-left: 4px; }
+.supports-flex-gap .btns > * + *,
+.supports-flex-gap .global-nav > * + *,
+.supports-flex-gap .top-right > * + *,
+.supports-flex-gap .nav-pill > * + *,
+.supports-flex-gap .sheet-grip > * + *,
+.supports-flex-gap .sheet-grip-main > * + *,
+.supports-flex-gap .sheet-reopen > * + *,
+.supports-flex-gap .card .head > * + *,
+.supports-flex-gap .hexagram > * + *,
+.supports-flex-gap .lot-tags > * + *,
+.supports-flex-gap .coach-steps li > * + *,
+.supports-flex-gap .date-row > * + *,
+.supports-flex-gap .stats-row > * + *,
+.supports-flex-gap .rec > * + *,
+.supports-flex-gap .rec .rtop > * + *,
+.supports-flex-gap .again-date-row > * + * { margin-left: 0; margin-top: 0; }
+
+/* 复制浮层（替代容器不提供的剪贴板能力） */
+.xhs-copy-veil {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+  z-index: 80; display: none; align-items: center; justify-content: center;
+  background: rgba(5,6,12,.74);
+}
+.xhs-copy-veil.on { display: flex; }
+.xhs-copy-box {
+  width: calc(100vw - 56px); max-width: 460px;
+  background: #0c0a16;
+  border: 1px solid rgba(216,180,106,.35);
+  border-radius: 14px;
+  padding: 20px 18px;
+}
+.xhs-copy-box h4 {
+  color: #d8b46a; font-size: 13px; letter-spacing: .4em;
+  text-align: center; margin-bottom: 14px;
+}
+.xhs-copy-text {
+  width: 100%; height: 42vh; min-height: 160px;
+  resize: none; box-sizing: border-box;
+  background: rgba(232,228,245,.06);
+  border: 1px solid rgba(232,228,245,.16);
+  border-radius: 10px;
+  color: #e8e4f5;
+  font-family: inherit; font-size: 13px; line-height: 1.9;
+  padding: 12px;
+  -webkit-user-select: text; user-select: text;
+}
+.xhs-copy-tip {
+  margin-top: 12px; font-size: 11px; letter-spacing: .2em;
+  color: rgba(232,228,245,.55); text-align: center;
+}
+.xhs-copy-close {
+  display: block; margin: 16px auto 0;
+  padding: 10px 22px; min-height: 44px;
+  border: 1px solid rgba(216,180,106,.4);
+  border-radius: 999px;
+  background: rgba(216,180,106,.1);
+  color: #d8b46a; font-family: inherit; font-size: 12px; letter-spacing: .3em;
+  cursor: pointer;
+}

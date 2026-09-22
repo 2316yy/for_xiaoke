@@ -1,2 +1,5 @@
 .DS_Store
 *.log
+
+# 本机下载的 AI skill 工具（用不到 / 需要时从官方地址重新下载）
+.skill/

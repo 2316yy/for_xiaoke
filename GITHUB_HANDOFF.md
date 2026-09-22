@@ -115,3 +115,13 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 - **提交**：`LOTS_COPY.md` 与 `lots.js` 要一起提交；`push.sh` 的 `git add -A` 会自动带上。
 - 卦名会驱动结果页的卦象图标（`game.js` 的 `hexLines`）：改卦名不会崩，但名称不符合六十四卦命名时图标会消失，尽量别随意改。
 - `grade` 会影响结果页“理智消耗”，区间数值在 `tools/lots_build.cjs` 顶部 `SAN_RANGE`；那是数值配置，不属于文案。
+
+## 八、小红书小工具版（离线 H5 包）
+
+- **产物**：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（上传包，2.20 MiB）；`xiaohongshu/dist/`（可本地预览的静态目录）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB）；`xiaohongshu/README.md`（校验摘要）。
+- **重建**：`node tools/build_xhs_3d.mjs`（用 esbuild 把 three.js + main.js + cubes.js 打成经典 IIFE；缺 esbuild 时 `npm i -D esbuild` 或设 `ESBUILD=/path/to/esbuild`）。
+- **静态校验**：`node tools/check_xhs_minitool.mjs xiaohongshu/dist --allow-3d`，再用 `.skill/minitool-zip-builder/scripts/` 下的 Node / Python 审计脚本量体积。
+- **3D 方案**：保留 Three.js 祭坛、`idol.glb`（1.89MB / 约 7.9 万 tris）和 8 个曜方 GLB（每个 82~167KB，已用 gltf-transform 简化 + 512/256 贴图）；ESM/importmap/module 都换成经典脚本，内联脚本外置，剪贴板改为可选中文本浮层，CSS 做 Chrome 61 基线回退。
+- **与 skill 的偏差（用户明确要求）**：skill 的允许文件类型不含 `.glb`，且禁止 fetch/XHR；本包保留 `.glb` 并由 three.js 加载器读取本地文件，因此静态校验把这两项列为 WARN（模型本地加载，无远程请求）。若上传平台强制拒绝 `.glb`，需要改回 2D 或把模型转成内嵌格式。
+- **保留**：64 签新文案、12 心情、心情定签池、签卡共鸣标签、签谱/集曜/曜录（localStorage）、3D 摇签仪式、Web Audio 音效。
+- 目标基线是 Chrome 61 / Android 8.1，但本机没有该内核，**WebGL / CSS 兼容性与真机性能未实测**；上线前请在 PC 模拟器与低端真机各走一遍首屏、摇签、结果卡、曜方拖动。
