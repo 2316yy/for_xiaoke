@@ -118,7 +118,7 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 
 ## 八、小红书小工具版（离线 H5 包）
 
-- **产物**：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（上传包，1.88 MiB）；`xiaohongshu/dist/`（可本地预览的静态目录）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB）；`xiaohongshu/README.md`（校验摘要）。
+- **产物**：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（本地上传用，已 `.gitignore`，不推 GitHub）；`xiaohongshu/dist/`（可在本地起静态服务预览）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB）；`xiaohongshu/README.md`（校验摘要）。
 - **重建**：`node tools/build_xhs_3d.mjs`（用 esbuild 把 three.js + main.js + cubes.js 打成经典 IIFE；缺 esbuild 时 `npm i -D esbuild` 或设 `ESBUILD=/path/to/esbuild`）。
 - **静态校验**：`node tools/check_xhs_minitool.mjs xiaohongshu/dist --allow-3d`，再用 `.skill/minitool-zip-builder/scripts/` 下的 Node / Python 审计脚本量体积。
 - **3D 方案**：保留 Three.js 祭坛、`idol.glb`（1.42MB / 约 5.5 万 tris）和 8 个曜方 GLB（每个 82~167KB，已用 gltf-transform 简化 + 512/256 贴图）；ESM/importmap/module 都换成经典脚本，内联脚本外置，剪贴板改为可选中文本浮层，CSS 做 Chrome 61 基线回退。

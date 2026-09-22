@@ -3,3 +3,6 @@
 
 # 本机下载的 AI skill 工具（用不到 / 需要时从官方地址重新下载）
 .skill/
+
+# 小红书上传 zip 只留在本地上传，不占线上地址
+xiaohongshu/*.zip

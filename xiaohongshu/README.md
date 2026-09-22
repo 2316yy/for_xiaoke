@@ -4,7 +4,7 @@
 
 ## 产物
 
-- 上传包：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（1.88 MiB，`index.html` 在 zip 根）
+- 上传包（只在本地，已加入 `.gitignore`，不推送到 GitHub）：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（1.88 MiB，`index.html` 在 zip 根）
 - 解压目录（可直接本地起静态服务预览）：`xiaohongshu/dist/`
 - 优化后模型源：`xiaohongshu/models3d/`（idol.glb + cubes/*.glb）
 - 重新构建：`node tools/build_xhs_3d.mjs`
