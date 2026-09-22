@@ -103,13 +103,15 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 
 ## 七、64 签文案怎么改（人类入口）
 
-- **唯一文案源文件**：根目录 `LOTS_COPY.md`（纯文本 / Markdown，64 签与六档判词都在里面，直接读改）。
+- **唯一文案源文件**：根目录 `LOTS_COPY.md`（纯文本 / Markdown，64 签 + 每签 2~3 个心情标签 + 六档判词都在里面，直接读改）。
 - **改完必须重建**：仓库根目录运行 `sh build-lots.sh`，它读取 `LOTS_COPY.md`，生成游戏实际加载的 `lots.js`。
   - 忘了重建可自检：`sh build-lots.sh --check`（不一致会非 0 退出并提示）。
   - 构建器：`tools/lots_build.cjs`；自测：`node tools/test_lots_build.cjs`（本机 node 不在 PATH 时，脚本会自动用 `/opt/homebrew/bin/node`）。
 - **不要手改 `lots.js`**：它开头已标注为自动生成，直接改会在下次构建时被覆盖。
   - 极端情况（`LOTS_COPY.md` 丢失）可用 `node tools/lots_build.cjs --extract > /tmp/lots.md` 从现有 `lots.js` 反向恢复。
-- **改错不会弄坏游戏**：构建器会校验 64 签数量、签号、签级（六档）、主题（六个 key）和每签四句；报错会指到行号，校验不通过不覆盖 `lots.js`。
+- **改错不会弄坏游戏**：构建器会校验 64 签数量、签号、签级（六档）、主题（十二个 key、每签 2~3 个、每个心情至少有一签）和每签四句；报错会指到行号，校验不通过不覆盖 `lots.js`。
+- **心情标签怎么参与玩法**：`lots.js` 里每签的 `moods` 是 2~3 个心情 key；`game.js` 的 `pickLotForMood()` 只从带当前所选心情的签里抽（同池尽量不连抽），所以选心情就是选签池，签卡/签谱/曜录会显示「签心相应」三个标签并高亮当前心情。
+- **心情语料**：`MOODS` 在 `game.js`（阴翳六 + 微光六，2.5.7 新增「勇气 / 释然」）；颜色镜像在 `dex.js` 的 `MOOD_META` 与 `cubes.js` 的方块底晕映射，三处颜色要一致。旧存档的 `grace`（感念）会在 `dex.js` 里自动迁移为 `gratitude`。
 - **提交**：`LOTS_COPY.md` 与 `lots.js` 要一起提交；`push.sh` 的 `git add -A` 会自动带上。
 - 卦名会驱动结果页的卦象图标（`game.js` 的 `hexLines`）：改卦名不会崩，但名称不符合六十四卦命名时图标会消失，尽量别随意改。
 - `grade` 会影响结果页“理智消耗”，区间数值在 `tools/lots_build.cjs` 顶部 `SAN_RANGE`；那是数值配置，不属于文案。

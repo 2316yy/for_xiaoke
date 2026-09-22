@@ -657,7 +657,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
           const en = cubes.get(key);
           if (en && list.length && window.__dex.BY_KEY[key]) {
             const m = list[0].mood;
-            const meta = { lost:'#9d7bff',tired:'#7f8fc9',lonely:'#6fb6cf',fear:'#6a7fd8',angry:'#e07856',hollow:'#9d95b0',joy:'#f0b45c',calm:'#8fd0a8',hope:'#e8d078',grace:'#e8a0b8' };
+            const meta = { lost:'#9d7bff',tired:'#7f8fc9',lonely:'#6fb6cf',fear:'#6a7fd8',angry:'#e07856',hollow:'#9d95b0',joy:'#f0b45c',calm:'#8fd0a8',hope:'#e8d078',gratitude:'#e8a0b8',courage:'#e0894a',relief:'#7cc7b4',grace:'#e8a0b8' };
             if (meta[m]) { en.moodColor.set(meta[m]); en.ring.material.color.set(meta[m]); }
           }
         });

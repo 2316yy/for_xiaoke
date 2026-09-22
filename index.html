@@ -486,6 +486,24 @@
   }
   .question-line em { color: var(--ink); font-style: normal; opacity: .9; }
 
+  /* 2.5.7：签卡上的心情共鸣标签 */
+  .lot-tags {
+    margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center;
+    gap: 7px; justify-content: flex-start;
+  }
+  .lt-cap { font-size: 10px; letter-spacing: .3em; color: var(--faint); margin-right: 3px; text-shadow: var(--sh); }
+  .ltag {
+    font-size: 11px; letter-spacing: .18em; padding: 3px 10px 2px;
+    border: 1px solid color-mix(in srgb, var(--c) 36%, transparent);
+    border-radius: 999px; color: rgba(232,228,245,.62); text-shadow: var(--sh);
+    transition: all .4s;
+  }
+  .ltag.on {
+    color: var(--c);
+    border-color: color-mix(in srgb, var(--c) 75%, transparent);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--c) 26%, transparent);
+  }
+
   .poem {
     margin: 30px 0 36px;
     font-size: 17px; line-height: 2.5; letter-spacing: .2em; color: #ddd6c8;
@@ -928,7 +946,7 @@
         </div></li>
         <li><b>贰</b><div>
           <h4>选出此刻的你</h4>
-          <p>阴翳或微光，深渊都接。心情会染亮这座祭坛，也决定深渊如何回应你。</p>
+          <p>阴翳或微光，深渊都接。心情会染亮这座祭坛，并替你筛出共鸣的签——只抽与此刻心情相通的签。</p>
         </div></li>
         <li><b>叁</b><div>
           <h4>亲手摇签</h4>

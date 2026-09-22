@@ -37,7 +37,8 @@
     lost:   ['迷茫', '#9d7bff'], tired: ['疲惫', '#7f8fc9'], lonely: ['孤独', '#6fb6cf'],
     fear:   ['恐惧', '#6a7fd8'], angry: ['愤怒', '#e07856'], hollow: ['空洞', '#9d95b0'],
     joy:    ['欢喜', '#f0b45c'], calm:  ['平和', '#8fd0a8'], hope:   ['期待', '#e8d078'],
-    grace:  ['感念', '#e8a0b8'],
+    gratitude: ['感念', '#e8a0b8'], courage: ['勇气', '#e0894a'], relief: ['释然', '#7cc7b4'],
+    grace:  ['感念', '#e8a0b8'],   /* 旧档兼容：2.5.7 之前的 key */
   };
 
   const GEM_CHANCE = 0.05;   /* 每签 5%：深渊把私藏的宝石一并丢给你（未持有宝石时） */
@@ -67,7 +68,11 @@
         && typeof d.grade === 'string'
         && typeof d.mood === 'string'
         && typeof d.target === 'string'
-      ).slice(-2000);
+      ).map((d) => {
+        /* 2.5.7：旧档的 grace key 统一迁移为 gratitude（感念） */
+        if (d.mood === 'grace') d.mood = 'gratitude';
+        return d;
+      }).slice(-2000);
     }
 
     if (p.layout && typeof p.layout === 'object') {
@@ -176,6 +181,21 @@
   /* ============ 浮层框架 ============ */
   const esc = s => String(s == null ? '' : s)
     .replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
+  /* 2.5.7：签卡/签谱上的心情共鸣标签 */
+  function moodTagsHtml(moods, highlight) {
+    return (moods || []).map((k) => {
+      const mm = MOOD_META[k];
+      if (!mm) return '';
+      return '<span class="ltag' + (k === highlight ? ' on' : '') +
+        '" style="--c:' + mm[1] + '">' + esc(mm[0]) + '</span>';
+    }).join('');
+  }
+  function moodTagsRow(moods, highlight) {
+    const chips = moodTagsHtml(moods, highlight);
+    if (!chips) return '';
+    return '<div class="lot-tags"><span class="lt-cap">签 心 相 应</span>' + chips + '</div>';
+  }
   const openStack = [];
   function openVeil(id) {
     const el = document.getElementById(id);
@@ -291,6 +311,7 @@
       '</div>' +
       '<div class="hex-name">' + esc(lot ? lot.name : '') + hex + '</div>' +
       '<div class="question-line">你问：<em>' + esc(d.q) + '</em>（' + esc(mm[0]) + '之问）</div>' +
+      moodTagsRow(lot ? lot.moods : [], d.mood) +
       '<p class="veil-meta">所问之日 <em>' + esc(dateLabel(d.target)) + '（' + esc(relLabel(d.target)) + '）</em>' +
         ' · 求于 <em>' + esc(tsLabel(d.ts)) + '</em>' + (extraMeta || '') + '</p>' +
       '<div class="poem" style="cursor:default;min-height:0">' + (lot ? esc(lot.poem.join('\n')).replace(/\n/g, '<br>') : '') + '</div>' +
@@ -353,6 +374,7 @@
         '</div>' +
         '<div class="hex-name">' + esc(lot.name) + hex + '</div>' +
         '<p class="veil-meta">' + meta + '</p>' +
+        moodTagsRow(lot.moods, mine.length ? mine[0].mood : null) +
         '<div class="poem" style="cursor:default;min-height:0">' + esc(lot.poem.join('\n')).replace(/\n/g, '<br>') + '</div>' +
       '</div>';
     if (mine.length) {

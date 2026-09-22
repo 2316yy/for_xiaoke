@@ -2,7 +2,7 @@
 'use strict';
 
 /* LOTS_COPY.md ↔ lots.js 构建器自测
- * 运行：node tools/lots_build.cjs --check && node tools/test_lots_build.cjs
+ * 运行：sh build-lots.sh && node tools/test_lots_build.cjs
  */
 
 const fs = require('fs');
@@ -13,6 +13,7 @@ const { spawnSync } = require('child_process');
 const {
   parseLotsCopy,
   renderLotsJs,
+  renderLotsCopy,
   GRADES,
   THEMES,
   BuildError,
@@ -52,10 +53,13 @@ console.log('[1] 正常解析');
 ok(data.lots.length === 64, '64 签');
 ok(data.lots.every((l, i) => l.n === i + 1), '签号 1~64 且升序');
 ok(data.lots.every((l) => GRADES.includes(l.grade)), '签级全部合法');
-ok(data.lots.every((l) => Object.prototype.hasOwnProperty.call(THEMES, l.theme)), '主题全部合法');
+ok(data.lots.every((l) => Array.isArray(l.moods) && l.moods.length >= 2 && l.moods.length <= 3), '每签 2~3 个心情标签');
+ok(data.lots.every((l) => l.moods.every((k) => Object.prototype.hasOwnProperty.call(THEMES, k))), '心情 key 全部合法');
+ok(data.lots.every((l) => new Set(l.moods).size === l.moods.length), '单签内心情不重复');
 ok(data.lots.every((l) => l.poem.length === 4), '每签四句');
 ok(data.lots.every((l) => l.name && l.poem.every((p) => p.length > 0)), '卦名与签诗非空');
 ok(GRADES.every((g) => data.verdicts[g] && data.verdicts[g].length > 0), '六档判词齐全');
+ok(Object.keys(THEMES).every((k) => data.lots.some((l) => l.moods.includes(k))), '十二种心情都至少有一签');
 
 console.log('[2] 生成结果可用且与源数据一致');
 const code = renderLotsJs(data);
@@ -67,13 +71,20 @@ ok(loaded.SAN_RANGE && loaded.SAN_RANGE['下下'][1] === 78, 'SAN_RANGE 保留')
 const diskCode = fs.readFileSync(JS_FILE, 'utf8');
 ok(diskCode === code, '磁盘上的 lots.js 与 LOTS_COPY.md 同步（可运行 sh build-lots.sh 修复）');
 
+const data2 = parseLotsCopy(renderLotsCopy(data));
+ok(JSON.stringify(data2) === JSON.stringify(data), 'LOTS_COPY.md 重排/反向生成后可再次解析');
+
 console.log('[3] 常见手误要有清楚报错');
-throws(() => parseLotsCopy(md.replace('主题：lost', '主题：dizzy')), '非法主题');
+const firstMoodLine = 'lost（迷茫） / courage（勇气） / hope（期待）';
+throws(() => parseLotsCopy(md.replace(firstMoodLine, 'lost（迷茫） / dizzy（眩晕） / hope（期待）')), '非法心情 key');
+throws(() => parseLotsCopy(md.replace(firstMoodLine, 'lost（迷茫）')), '只填 1 个心情标签');
+throws(() => parseLotsCopy(md.replace(firstMoodLine, firstMoodLine + ' / joy（欢喜）')), '填了 4 个心情标签');
+throws(() => parseLotsCopy(md.replace(firstMoodLine, 'lost（迷茫） / lost（迷茫） / hope（期待）')), '心情标签重复');
 throws(() => parseLotsCopy(md.replace('签级：上上', '签级：超级上上')), '非法签级');
 
 {
   const lines = md.split('\n');
-  const i = lines.indexOf('六龙并驾出深渊，');
+  const i = lines.indexOf('星汉西流夜未央，');
   lines.splice(i, 1);
   throws(() => parseLotsCopy(lines.join('\n')), '签诗少一句');
 }

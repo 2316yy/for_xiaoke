@@ -7,11 +7,15 @@
  *      （1.5 缺陷：currentMood 从未参与结果生成，结果只按 lot.theme 取料）
  *   2. 摇签从「看动画」变为「亲手摇」：按住晃动蓄力，能量满则签出
  *   3. 反馈层：Web Audio 音效、心情色联动场景、首访引导、快捷键
+ * 2.5.7 变更：
+ *   1. 每签带 2~3 个心情标签（lot.moods）：你选的心情会决定签池，
+ *      只会抽到与此刻心情共鸣的签；签卡上也会显示这三个标签
+ *   2. 微光新增「勇气 / 释然」，心情扩为 阴翳六 + 微光六
  * 依赖：lots.js（LOTS / VERDICTS / SAN_RANGE）
  *       audio.js（window.__audio）、main.js（window.__ritual）
  * ============================================================ */
 
-/* ============ 心情语料库（阴翳六 + 微光四） ============ */
+/* ============ 心情语料库（阴翳六 + 微光六） ============ */
 const MOODS = {
   /* ---------- 心有阴翳 ---------- */
   lost: {
@@ -223,7 +227,7 @@ const MOODS = {
       '写下「如果成了，我先做什么」。给好消息一条能走进来的路。'
     ]
   },
-  grace: {
+  gratitude: {
     name: '感念', group: 'light', color: '#e8a0b8',
     empathy: [
       '有什么人，或什么事，接住了你。你想把这份暖意说出口。',
@@ -245,12 +249,58 @@ const MOODS = {
       '做一件匿名的小事：帮一个不会知道是你的人。让好意继续流动。',
       '写下三件此刻感激的事，存好。低落的日子，这是你的火种清单。'
     ]
+  },
+  courage: {
+    name: '勇气', group: 'light', color: '#e0894a',
+    empathy: [
+      '你不是不怕。你是怕着，还愿意往前挪一步。',
+      '勇气不是心里的火，是手心的汗——你攥着它，却还是伸了出去。',
+      '你已经把最坏的结果在心里演过一遍了。还留在这里，本身就是答案。'
+    ],
+    abyss: [
+      '深渊不奖励勇敢。它只是看着，看你在没有回音的地方，还走不走下一步。',
+      '克苏鲁醒来时，没有谁因恐惧而伟大；但每次潮水退去，总有人重新站上礁石。',
+      '群星不为勇者让路。它们是黑暗里先亮起来的那几颗，好让你知道路不止脚下这一寸。'
+    ],
+    rebirth: [
+      '勇气不是把恐惧消灭掉，是让恐惧坐副驾，方向盘还在你手里。',
+      '你不需要等到不怕了再出发。怕着出发的人，才是一路把路照亮的人。',
+      '旧日不可战胜，但你可以选择以什么姿势站在它面前。那就是勇气全部的定义。'
+    ],
+    actions: [
+      '把最怕的那件事拆出最小的一步，今天只做这一步。做完就收工。',
+      '写下你害怕的那个结果，再写下「如果它真的发生，我会怎么做」。恐惧一旦具体，就小了一半。',
+      '找一个人说出你的怕。被听见的恐惧，会分走一部分重量。'
+    ]
+  },
+  relief: {
+    name: '释然', group: 'light', color: '#7cc7b4',
+    empathy: [
+      '你不是不在乎了。你是终于允许有些事，不必由你来结局。',
+      '那些反复想不通的事，有天忽然就不想了——不是想通了，是手松开了。',
+      '你累了很久，今天终于肯把「必须有个答案」这件事，放下。'
+    ],
+    abyss: [
+      '深渊从不解释。它收下所有说不出口的事，然后继续沉默——原来有些重量，沉默也接得住。',
+      '潮水退去时带走了沙上的字。不是字不重要，是海觉得该翻页了。',
+      '旧日会醒来，也会重新睡去。没有哪种执念，能比宇宙的呼吸更长。'
+    ],
+    rebirth: [
+      '放下不是认输，是你终于舍得把力气，从已经结束的事里收回来。',
+      '你不用为「早该释怀」而自责。有些结松开的时辰，本来就不归你定。',
+      '释然不是空白，是腾出来的那双手——现在你可以拿新的东西了。'
+    ],
+    actions: [
+      '写一句「这件事到此为止」，不必给别人看，写完撕掉也好。',
+      '今天绕开那个反复回放的旧场景：换条路走，换家店坐。',
+      '对自己说一次「我已经尽力了」。不是安慰，是结案。'
+    ]
   }
 };
 
 const MOOD_GROUPS = [
   { key: 'shade', label: '心 有 阴 翳', order: ['lost', 'tired', 'lonely', 'fear', 'angry', 'hollow'] },
-  { key: 'light', label: '心 有 微 光', order: ['joy', 'calm', 'hope', 'grace'] },
+  { key: 'light', label: '心 有 微 光', order: ['joy', 'calm', 'hope', 'gratitude', 'courage', 'relief'] },
 ];
 
 const GLYPHS = ['🜏','🜂','🜃','🜄','🜁','🜍','🜔','🜚','🝳','⚶','☍','🜛'];
@@ -261,6 +311,16 @@ const REDUCED_UI = !!(window.matchMedia
 
 /* ============ 工具 ============ */
 const pick = a => a[Math.floor(Math.random() * a.length)];
+
+/* 2.5.7：心情决定签池——只抽带该心情标签的签；同池里尽量不连抽同一签 */
+function pickLotForMood(moodKey) {
+  const fit = LOTS.filter((l) => Array.isArray(l.moods) && l.moods.indexOf(moodKey) >= 0);
+  const base = fit.length ? fit : LOTS;
+  const pool = (currentLot && base.length > 1)
+    ? base.filter((l) => l.n !== currentLot.n)
+    : base;
+  return pick(pool.length ? pool : base);
+}
 
 const CN_D = '零一二三四五六七八九';
 function cnNum(n) {
@@ -686,8 +746,8 @@ async function startRitual(pushCamera) {
   document.body.classList.add('ritual-mode');
   stageResult.classList.remove('on');
 
-  // 抽签（结果先定，仪式后揭）
-  currentLot = pick(LOTS);
+  // 抽签（结果先定，仪式后揭）：签池由当前心情决定
+  currentLot = pickLotForMood(currentMood);
 
   // 重置仪式 DOM
   whispersEl.innerHTML = '';
@@ -792,6 +852,13 @@ function renderResult() {
   const action = pick(M.actions);
   const san = makeSan(lot.grade);
 
+  /* 2.5.7：签卡显示这签共鸣的三个心情；当前所问心情高亮 */
+  const moodTagsHtml = (lot.moods || []).map((k) => {
+    const mm = MOODS[k];
+    if (!mm) return '';
+    return `<span class="ltag${k === currentMood ? ' on' : ''}" style="--c:${mm.color}">${mm.name}</span>`;
+  }).join('');
+
   /* ===== 2.5：签入曜方（时间×次数两个维度在此交汇） ===== */
   let rec = null;
   let cubeNoteHtml = '';
@@ -828,6 +895,7 @@ function renderResult() {
     <div class="glyph">${glyph}</div>
     <div class="question-line">你问：<em>${escapeHtml(currentQuestion)}</em>（${M.name}之问）</div>
     ${dateLine}
+    ${moodTagsHtml ? `<div class="lot-tags"><span class="lt-cap">签 心 相 应</span>${moodTagsHtml}</div>` : ''}
 
     <div class="poem" id="poem" title="点击可直接显示全诗"></div>
 
@@ -917,7 +985,8 @@ function renderResult() {
     const dateInfo = (window.__dex && targetDate)
       ? '\n所问之日：' + window.__dex.dateLabel(targetDate) + '（' + window.__dex.relLabel(targetDate) + '）'
       : '';
-    const txt = `《向克苏鲁许愿 · 六十四签》\n\n第${cnNum(lot.n)}签 ${lot.name} 【${lot.grade}】 ${glyph}\n你所问的：${currentQuestion}（${M.name}之问）${dateInfo}\n\n${lot.poem.join('\n')}\n\n【断曰】${verdict}\n【回响】${empathy}\n【深渊】${abyss}\n【向死而生】${rebirth}\n【指引】${action}\n\n理智消耗 −${san}`;
+    const tagNames = (lot.moods || []).map((k) => (MOODS[k] ? MOODS[k].name : k)).join(' · ');
+    const txt = `《向克苏鲁许愿 · 六十四签》\n\n第${cnNum(lot.n)}签 ${lot.name} 【${lot.grade}】 ${glyph}\n你所问的：${currentQuestion}（${M.name}之问）${dateInfo}\n共鸣心境：${tagNames}\n\n${lot.poem.join('\n')}\n\n【断曰】${verdict}\n【回响】${empathy}\n【深渊】${abyss}\n【向死而生】${rebirth}\n【指引】${action}\n\n理智消耗 −${san}`;
     navigator.clipboard.writeText(txt).then(() => {
       showToast('已 抄 录');
     }).catch(() => {});

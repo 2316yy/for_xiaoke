@@ -21,6 +21,7 @@ const MD_FILE = path.join(ROOT, 'LOTS_COPY.md');
 const JS_FILE = path.join(ROOT, 'lots.js');
 
 const GRADES = ['上上', '上吉', '中吉', '中平', '中下', '下下'];
+/* 12 个心情 key；每签可挂 2~3 个，决定它会进入哪些心情的签池 */
 const THEMES = {
   lost: '迷茫',
   tired: '疲惫',
@@ -28,6 +29,12 @@ const THEMES = {
   fear: '恐惧',
   angry: '愤怒',
   hollow: '空洞',
+  joy: '欢喜',
+  calm: '平和',
+  hope: '期待',
+  gratitude: '感念',
+  courage: '勇气',
+  relief: '释然',
 };
 
 /* 签级 → 理智消耗区间（数值配置，不属于文案；改这里不要改 lots.js） */
@@ -69,9 +76,36 @@ function stripHtmlComments(text) {
 const RE_LOT = /^#{2,6}\s*第\s*(\d+)\s*签\s*(?:[·•・:：\-—–]\s*)?(.*?)\s*$/;
 const RE_GRADE_HEAD = /^#{2,6}\s*(上上|上吉|中吉|中平|中下|下下)\s*(?:[（(].*?[)）])?\s*$/;
 const RE_META_GRADE = /^签级\s*[:：]\s*(.*?)\s*$/;
-const RE_META_THEME = /^主题\s*[:：]\s*([A-Za-z][A-Za-z0-9_-]*)/;
+const RE_META_MOODS = /^主题\s*[:：]\s*(.+?)\s*$/;
 const RE_POEM_HEAD = /^签诗\s*[:：]\s*$/;
 const RE_BULLET = /^[-*+]\s*(.+?)\s*$/;
+
+/* 「主题：lost（迷茫） / courage（勇气） / hope（期待）」→ ['lost','courage','hope'] */
+function parseMoodLine(raw, lineNo, err) {
+  const parts = raw.split(/[\/／、,，]+/).map((s) => s.trim()).filter(Boolean);
+  const tags = [];
+  parts.forEach((part) => {
+    const m = part.match(/^([A-Za-z][A-Za-z0-9_-]*)/);
+    if (!m) {
+      err(lineNo, `主题里的「${part}」认不出心情 key；应写成 lost（迷茫）这种格式`);
+      return;
+    }
+    const key = m[1].toLowerCase();
+    if (!THEMES[key]) {
+      err(lineNo, `主题「${key}」不合法；只能是 ${Object.keys(THEMES).join(' / ')}`);
+      return;
+    }
+    if (tags.includes(key)) {
+      err(lineNo, `主题「${key}」重复了`);
+      return;
+    }
+    tags.push(key);
+  });
+  if (tags.length < 2 || tags.length > 3) {
+    err(lineNo, `每签主题应填 2~3 个心情标签，目前填了 ${tags.length} 个`);
+  }
+  return tags;
+}
 
 function parseLotsCopy(text) {
   const src = stripHtmlComments(String(text).replace(/^\uFEFF/, ''));
@@ -95,9 +129,12 @@ function parseLotsCopy(text) {
     else if (!GRADES.includes(lot.grade)) {
       err(lot.line, `${label} 签级「${lot.grade}」不合法；只能是 ${GRADES.join(' / ')}`);
     }
-    if (!lot.theme) err(lot.line, `${label} 缺少「主题：」`);
-    else if (!THEMES[lot.theme]) {
-      err(lot.line, `${label} 主题「${lot.theme}」不合法；只能是 ${Object.keys(THEMES).join(' / ')}`);
+    if (!lot.moods || !lot.moods.length) err(lot.line, `${label} 缺少「主题：」`);
+    else if (lot.moods.some((k) => !THEMES[k])) {
+      err(lot.line, `${label} 主题里含有不合法的心情 key`);
+    }
+    if (lot.moods && (lot.moods.length < 2 || lot.moods.length > 3)) {
+      err(lot.line, `${label} 主题应填 2~3 个心情标签，目前 ${lot.moods.length} 个`);
     }
     if (lot.poem.length !== 4) {
       err(lot.line, `${label} 签诗应为 4 行，目前是 ${lot.poem.length} 行`);
@@ -125,7 +162,7 @@ function parseLotsCopy(text) {
         n: parseInt(m[1], 10),
         name: m[2].trim(),
         grade: '',
-        theme: '',
+        moods: null,
         poem: [],
         line: lineNo,
       };
@@ -149,7 +186,7 @@ function parseLotsCopy(text) {
 
     if (mode === 'lot' && lot) {
       if (inPoem) {
-        if (RE_META_GRADE.test(t) || RE_META_THEME.test(t)) {
+        if (RE_META_GRADE.test(t) || RE_META_MOODS.test(t)) {
           err(lineNo, `签诗已经开始，这里不能再出现「签级：」或「主题：」`);
         } else {
           lot.poem.push(t);
@@ -161,16 +198,16 @@ function parseLotsCopy(text) {
         lot.grade = m[1].trim();
         return;
       }
-      if ((m = t.match(RE_META_THEME))) {
-        if (lot.theme) err(lineNo, `第 ${lot.n} 签的「主题：」出现了两次`);
-        lot.theme = m[1].toLowerCase();
+      if ((m = t.match(RE_META_MOODS))) {
+        if (lot.moods) err(lineNo, `第 ${lot.n} 签的「主题：」出现了两次`);
+        lot.moods = parseMoodLine(m[1], lineNo, err);
         return;
       }
       if (RE_POEM_HEAD.test(t)) {
         inPoem = true;
         return;
       }
-      err(lineNo, '无法识别的内容；签级写成「签级：上上」，主题写成「主题：lost」，四句签诗逐行写在「签诗：」下面');
+      err(lineNo, '无法识别的内容；签级写成「签级：上上」，主题写成「主题：lost（迷茫） / courage（勇气）」，四句签诗逐行写在「签诗：」下面');
       return;
     }
 
@@ -206,6 +243,12 @@ function parseLotsCopy(text) {
     }
   });
 
+  /* 每个心情至少要有一签带着它，否则该心情的签池会空掉 */
+  const uncovered = Object.keys(THEMES).filter((k) => !lots.some((l) => l.moods && l.moods.includes(k)));
+  if (uncovered.length) {
+    errors.push(`这些心情标签没有任何签携带：${uncovered.join(' / ')}（每个心情至少要有 1 签）`);
+  }
+
   if (errors.length) {
     throw new BuildError(errors.map((e) => '  × ' + e).join('\n'));
   }
@@ -222,11 +265,13 @@ function renderLotsJs(data) {
   out.push(' *   改文案请编辑 LOTS_COPY.md，然后运行：sh build-lots.sh');
   out.push(' *   核对是否忘了同步：node tools/lots_build.cjs --check');
   out.push(' *');
-  out.push(' * 每签：n 签号 / name 卦名 / grade 签级 / theme 主题(对应解读语料)');
+  out.push(' * 每签：n 签号 / name 卦名 / grade 签级');
+  out.push(' *       moods 心情标签(2~3个)：决定该签进入哪些心情的签池，也显示在签卡上');
   out.push(' *       poem 签诗四句');
   out.push(' * grade: 上上 | 上吉 | 中吉 | 中平 | 中下 | 下下');
-  out.push(' * theme: lost 迷茫 / tired 疲惫 / lonely 孤独 / fear 恐惧 / angry 愤怒 / hollow 空洞');
-  out.push(' * （game2.0：theme 仅作签的元数据分类；解读语料由用户所选心情驱动）');
+  out.push(' * moods: lost 迷茫 / tired 疲惫 / lonely 孤独 / fear 恐惧 / angry 愤怒 / hollow 空洞');
+  out.push(' *        joy 欢喜 / calm 平和 / hope 期待 / gratitude 感念 / courage 勇气 / relief 释然');
+  out.push(' * （解读语料仍由用户所选心情驱动；心情同时决定签池）');
   out.push(' * ============================================================ */');
   out.push('const LOTS = [');
 
@@ -235,7 +280,7 @@ function renderLotsJs(data) {
     const namePad = ' '.repeat(Math.max(1, 9 - displayWidth(lot.name)));
     out.push(
       `  { n: ${lot.n},${nLead}name: ${jsString(lot.name)},${namePad}` +
-      `grade: ${jsString(lot.grade)}, theme: ${jsString(lot.theme)},`
+      `grade: ${jsString(lot.grade)}, moods: [${lot.moods.map(jsString).join(', ')}],`
     );
     out.push(`    poem: [${lot.poem.map(jsString).join(', ')}] },`);
   });
@@ -273,12 +318,14 @@ function renderLotsCopy(data) {
   out.push('  规则：');
   out.push('  1. 每支签一个二级标题：「## 第12签 · 天泽履」。签号 1~64，不重复；顺序随意，生成时自动按签号排。');
   out.push('  2. 签级：六档之一 —— 上上 / 上吉 / 中吉 / 中平 / 中下 / 下下。');
-  out.push('  3. 主题：六个英文 key 之一 —— lost(迷茫) / tired(疲惫) / lonely(孤独) / fear(恐惧) / angry(愤怒) / hollow(空洞)。');
-  out.push('     主题影响的是解读语料前缀，「（迷茫）」只是给你看的备注，可以改。');
+  out.push('  3. 主题：十二个英文 key 之一，每签填 2~3 个，用「 / 」分隔：');
+  out.push('     lost(迷茫) / tired(疲惫) / lonely(孤独) / fear(恐惧) / angry(愤怒) / hollow(空洞)');
+  out.push('     joy(欢喜) / calm(平和) / hope(期待) / gratitude(感念) / courage(勇气) / relief(释然)');
+  out.push('     你选哪个心情求签，就会从带该标签的签里抽；括号里的中文只是备注，可以改。');
   out.push('  4. 签诗：写在「签诗：」下面，四行、一句一行；行内不要用英文单引号，需要引号请用中文引号。');
   out.push('  5. 「# 签级判词」一节按签级分组，每条以「- 」开头；每档至少保留一条，会随机抽一条显示。');
   out.push('  6. 不要删除或改名各级标题行；改完后运行 sh build-lots.sh，把 LOTS_COPY.md 和 lots.js 一起提交。');
-  out.push('  7. 脚本会校验签数、签号、签级、主题和签诗行数，出错会告诉你第几行，不会弄坏游戏。');
+  out.push('  7. 脚本会校验签数、签号、签级、主题标签和签诗行数，出错会告诉你第几行，不会弄坏游戏。');
   out.push('-->');
   out.push('');
   out.push('# 《向克苏鲁许愿》64 签文案');
@@ -292,7 +339,11 @@ function renderLotsCopy(data) {
     out.push(`## 第${lot.n}签 · ${lot.name}`);
     out.push('');
     out.push(`签级：${lot.grade}`);
-    out.push(`主题：${lot.theme}（${THEMES[lot.theme] || ''}）`);
+    const moodKeys = lot.moods || (lot.theme ? [lot.theme] : []);
+    const moodLine = moodKeys
+      .map((k) => `${k}（${THEMES[k] || ''}）`)
+      .join(' / ');
+    out.push(`主题：${moodLine}`);
     out.push('签诗：');
     lot.poem.forEach((p) => out.push(p));
     out.push('');
