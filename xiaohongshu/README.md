@@ -4,7 +4,7 @@
 
 ## 产物
 
-- 上传包：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（2.20 MiB，`index.html` 在 zip 根）
+- 上传包：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（1.88 MiB，`index.html` 在 zip 根）
 - 解压目录（可直接本地起静态服务预览）：`xiaohongshu/dist/`
 - 优化后模型源：`xiaohongshu/models3d/`（idol.glb + cubes/*.glb）
 - 重新构建：`node tools/build_xhs_3d.mjs`
@@ -17,7 +17,7 @@
 | `index.html` | 入口；无内联脚本、无 importmap/module |
 | `device.js` | 原头部的设备探测脚本外置（CSP 禁止内联脚本） |
 | `app3d.js` | three.js + OrbitControls + GLTFLoader + RoomEnvironment + main.js + cubes.js 的经典 IIFE（esbuild --target=chrome61 --minify） |
-| `assets/idol.glb` | 神像模型：3.79MB → 1.89MB，约 7.9 万三角面，贴图最大 512 |
+| `assets/idol.glb` | 神像模型：3.79MB → 1.42MB，约 5.5 万三角面，贴图最大 512 |
 | `assets/cubes/*.glb` | 8 个曜方模型：各 82~167KB（原 0.7~1.4MB），约 4.6k 面，贴图最大 256 |
 | `lots.js` | 64 签文案 + 12 心情标签 + 签级判词 |
 | `audio.js` | Web Audio 音效（首次用户手势后解锁） |
@@ -29,7 +29,7 @@
 ## 校验摘要
 
 - skill 自带 Node 审计（dist）：`PASS: 18 file(s), 0 warning(s)`
-- skill 自带 Python 审计（zip）：`PASS: 18 file(s), 1 warning(s)`（zip 2.20 MiB，仅超过 2 MiB 建议值，未超 10 MiB 上限）
+- skill 自带 Python 审计（zip）：`PASS: 18 file(s), 0 warning(s)`
 - 自有静态校验（`--allow-3d`）：`通过 · FAIL 0 / WARN 1`
   - `index.html` 在 zip 根，未多套目录；文件类型全部允许（按你要求额外允许 `.glb`）
   - 无内联 `<script>` / 行内事件 / `javascript:`；无 `type="module"` / importmap / import-export
@@ -40,7 +40,7 @@
 - 浏览器端到端探针（桌面 1280×800 + 移动 390×844）：`ALL PASS 18/18`
   - WebGL canvas / `__ritual` / `__cubes` 就绪；idol.glb 与曜方 glb 均 200；无兜底/剪影警告
   - 勇气 / 释然抽签、心情签池、签卡三标签、复制浮层、签谱 64 格全部正常；`CONSOLE CLEAN`，无 4xx/5xx
-- 模型总量 2.9MB，zip 2.20 MiB，满足 10 MiB 上传硬上限。
+- 模型总量约 2.5MB，zip 1.88 MiB（低于 2 MiB 建议值，远低于 10 MiB 上传上限）。
 
 ## 与 skill 默认规范的差异（按你的要求）
 
