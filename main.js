@@ -55,18 +55,21 @@ const QUALITY_TIERS = {
     name: 'high', dprCap: 2, maxPixels: 0, antialias: true, precision: 'highp',
     shadows: true, shadowSize: 2048, shadowType: THREE.PCFShadowMap,
     env: true, stars: 1, simpleFloor: false, fixedFps: 0,
+    exposure: 0.9, ambient: 0, hemi: 0.28, fill: 0.4,
     gardenFx: true, sparkleCount: 42, ritualDomFps: 60,
   },
   mobile: {
     name: 'mobile', dprCap: 1, maxPixels: 1000000, antialias: false, precision: 'mediump',
     shadows: false, shadowSize: 512, shadowType: THREE.PCFShadowMap,
-    env: false, stars: 0.6, simpleFloor: true, fixedFps: 30,
+    env: true, stars: 0.6, simpleFloor: true, fixedFps: 30,
+    exposure: 1.0, ambient: 0.9, hemi: 0.95, fill: 0.7,
     gardenFx: true, sparkleCount: 20, ritualDomFps: 30,
   },
   low: {
     name: 'low', dprCap: 1, maxPixels: 850000, antialias: false, precision: 'mediump',
     shadows: false, shadowSize: 256, shadowType: THREE.BasicShadowMap,
-    env: false, stars: 0.45, simpleFloor: true, fixedFps: 30,
+    env: true, stars: 0.45, simpleFloor: true, fixedFps: 30,
+    exposure: 1.0, ambient: 1.05, hemi: 0.95, fill: 0.7,
     gardenFx: false, sparkleCount: 12, ritualDomFps: 30,
   },
 };
@@ -96,7 +99,7 @@ applyRendererSize();
 renderer.shadowMap.enabled = CFG.shadows;
 renderer.shadowMap.type = CFG.shadowType;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = CFG.env ? 0.9 : 1.28;
+renderer.toneMappingExposure = CFG.exposure;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.appendChild(renderer.domElement);
 
@@ -107,14 +110,13 @@ scene.fog = new THREE.FogExp2(0x05060c, 0.02);
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 200);
 
+if (CFG.ambient) {
+  scene.add(new THREE.AmbientLight(0x9b95d0, CFG.ambient));
+}
 if (CFG.env) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
-} else {
-  /* 移动端无环境贴图时补一层廉价环境光，避免模型/曜方整体沉进黑色；
-     环境光只影响颜色，不增加阴影/反射贴图采样。 */
-  scene.add(new THREE.AmbientLight(0x9b95d0, 12.0));
 }
 
 /* ---------- 调色板 ---------- */
@@ -403,7 +405,7 @@ scene.add(farStars);
 /* ============================================================
  * 灯光
  * ============================================================ */
-  const hemi = new THREE.HemisphereLight(0x8a7bd8, 0x0a0812, CFG.env ? 0.28 : 1.8);
+  const hemi = new THREE.HemisphereLight(0x8a7bd8, 0x0a0812, CFG.hemi);
 scene.add(hemi);
 
 const keyLight = new THREE.SpotLight(0xfff2dd, 14, 30, Math.PI / 5.5, 0.45, 1.6);
@@ -415,7 +417,7 @@ if (CFG.shadows) {
 }
 scene.add(keyLight);
 
-  const fillLight = new THREE.DirectionalLight(0x6f7dd8, CFG.env ? 0.4 : 1.2);
+  const fillLight = new THREE.DirectionalLight(0x6f7dd8, CFG.fill);
 fillLight.position.set(-4.5, 2.6, 3.2);
 scene.add(fillLight);
 

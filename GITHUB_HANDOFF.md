@@ -132,10 +132,11 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 本次针对手机端「求签界面很卡」和「手机端音效丢失」做了一轮性能改造。改动点：
 
 - **画质档**：`main.js` 新增 `high / mobile / low` 三档，默认桌面 `high`、移动 `mobile`；移动端若 `deviceMemory <= 2`、`hardwareConcurrency <= 4` 或 DPR ≥ 3 自动走 `low`。URL 加 `?q=low|mid|high` 可覆盖。
-- **移动端渲染降档**：DPR 上限 1（`maxPixels` 100 万 / low 85 万）、关 antialias、关 shadowMap、关 `RoomEnvironment`/PMREM 环境贴图、星粒子按 0.6 / 0.45 系数缩减、地面改 Lambert、模型/底座降低分段；桌面 `high` 参数保持原体验。为补偿无 PMREM 后的暗场，移动端增加 `AmbientLight(0x9b95d0, 12)` + 提高 hemi/fill 强度，并把 `toneMappingExposure` 从 0.9 提到 1.28；地板纹理也单独提亮。**不能再把手机构建降到 env=false 却不加补光**，否则小红书扫码版会出现「灯光暗了/近黑」。
+- **移动端渲染降档**：DPR 上限 1（`maxPixels` 100 万 / low 85 万）、关 antialias、关 shadowMap、**保留 `RoomEnvironment`/PMREM 环境贴图**（这是桌面/旧版质感的来源）、星粒子按 0.6 / 0.45 系数缩减、地面改 Lambert、模型/底座降低分段；桌面 `high` 参数保持原体验。移动端保留 PMREM 的同时只补少量 `AmbientLight`/hemi/fill 地板光（`mobile`: ambient 0.9 / hemi 0.95 / fill 0.7；`low`: ambient 1.05），`exposure=1.0`。地面纹理只在 mobile/low 轻提亮。**不要再把移动端 env 关掉后用大 ambient 硬撑**，会出现刺眼、扁平、金属失真的假打光。
 - **主循环**：移动端主 3D 循环稳定 30fps，避免 60fps 追帧失败堆积长任务；页面隐藏时用 `visibilitychange` 停掉 rAF，回到前台再启动。
 - **cubes.js**：通过 `createGarden({ quality })` 接收画质档；移动端/低画质关闭方块阴影、降低宝石星尘数量，low 档关闭非关键方块的 bob 微动。
-- **仪式 DOM**：`game.js` 的摇签视觉写入（`tubeWrap.transform`、能量环 `strokeDashoffset`、提示、`__ritual.energy`）在移动端降到 30fps；能量累积仍按 rAF 精度。移动端 CSS 关闭能量环 `drop-shadow`、导航 `backdrop-filter`、提示脉冲动画，并在仪式态隐藏主面板/导航的绘制。
+- **仪式 DOM**：`game.js` 的签筒跟随每帧更新（`translate3d`），能量环/提示/`__ritual.energy` 在移动端仍以 30fps 写入，兼顾手感与 SVG repaint。`#stage-ritual.on` 设 `touch-action:none`，`.tube-wrap` 设 `will-change:transform / backface-visibility:hidden`，防止安卓把摇签手势当滚动。移动端 CSS 关闭能量环 `drop-shadow`、导航 `backdrop-filter`、提示脉冲动画，并在仪式态隐藏主面板/导航的绘制。
+- **旧安卓/小红书 WebView 兜底**：`game.js` 增加 `if (!window.PointerEvent)` 的 TouchEvent 摇签分支；触屏 `touchstart/touchmove` 会走同一套蓄力、`rustle()` 和签筒跟随逻辑，适配没有 PointerEvent 的小红书内置 WebView。
 - **打字机**：签诗改成复用单个 `TextNode` 累加，不再每字创建/搬移节点；`.poem` 用 `white-space: pre-line` 保留换行。
 - **audio.js**：摇签沙沙改为一条常驻噪声源 + 常驻 gain/filter，不再每 70ms `createBufferSource/newBiquadFilter/createGain` 和重复生成噪声 buffer；共享 white-noise buffer；`resumeCtx()` 在每次音效、visibility、页面恢复时尝试恢复 AudioContext；游戏层 `pointerdown / click / keydown` 不再 once，切后台/来电后下一次手势会自动恢复。已用探针验证：12 次 `rustle` 新增 0 个 buffer/source；`suspend()` 后下一次 tap 可回到 `running`。
 
@@ -146,14 +147,16 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 - DPR=2 优化后：摇晃段约 **30.1 fps**，**0** 个 longtask，摇晃脚本约 4.5s 跑完。
 - DPR=3 优化前（HEAD 原版）：摇晃段约 **3.7 fps**，93 个 longtask。
 - DPR=3 优化后：摇晃段约 **29.7 fps**，**0** 个 longtask。
-- 补光后复测：DPR=2 摇晃段约 **26.6 fps / 1 个 longtask**，DPR=3 约 **27.7 fps / 1 个 longtask**（仍远好于优化前 3.7 fps）。
-- 移动端亮度探针：`~/cth_tools/xhs_mobile_visual_probe.cjs`；优化前灰阶均值约 11（近黑），补光后恢复到约 39-42（旧版环境贴图约 44.7）。
-- 所有数据均为本机 Playwright 模拟，**真机性能未实测**；上线前仍建议在 Android Chrome / iOS Safari 真机走一遍首屏、摇签、结果卡、曜方拖动。
+- 启用 PMREM 后（headless SwiftShader 软件的 GPU 路径较慢，仅作上限参考）：DPR=2 摇晃段约 13.8 fps，但主线程 rAF 被 GPU 阻塞；不是最终真机结论。
+- 换成硬件加速（本机 Chromium `--use-angle=metal --enable-gpu`，更接近真机 GPU）：DPR=2 / DPR=3 摇晃段均为 **60.3 fps**，**0** 个 longtask，脚本约 2.1s 跑完。说明保留 PMREM 时，现代 GPU 下主线程/2D 动效是流畅的。
+- 移动端亮度探针：`~/cth_tools/xhs_mobile_visual_probe.cjs`；旧版环境贴图灰阶均值约 44.7，恢复 PMREM 后约 41.7，接近旧版；不要再使用 env=false + 高 ambient 的假打光。
+- 真机性能仍未实测；上线前建议在 Android Chrome / 小红书安卓 WebView 真机走一遍首屏、摇签、结果卡、曜方拖动。
 
 ### 音频修复验收
 
 - 探针：`~/cth_tools/audio_probe2.cjs`。
 - 首访第一次 tap 后 AudioContext 为 `running`；人为 `suspend()` 后下一次 tap 自动恢复 `running`；连续 12 次 `rustle` 新增 buffer/source 均为 0。
+- 无 `PointerEvent` 安卓兜底探针：`~/cth_tools/xhs_touch_fallback_probe.cjs`；模拟后触屏摇签 14 次移动，`rustle` 调用 14 次，能量环 `strokeDashoffset` 由 741.4 降到 52.2，签筒 transform 同步更新；证明小红书无 PointerEvent WebView 下摇签动效和音效可同时触发。
 
 ### 小红书版
 

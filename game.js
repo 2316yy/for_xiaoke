@@ -672,12 +672,12 @@ function startRitualLoop() {
       }
       pointerVel *= 0.86;
       pointerOffsetX *= 0.92;
-      /* 移动端只让视觉/3D 联动以 30fps 写入，减少 transform / SVG filter
-         重绘与 pointermove 同帧抢占主线程；能量累积仍按 rAF 精度。 */
+      /* 签筒跟随每帧更新（触感优先）；能量环/文字/3D 联动在移动端仍以
+         30fps 写入，避免 SVG repaint 抢主线程。 */
+      tubeWrap.style.transform =
+        `translate3d(calc(-50% + ${dx.toFixed(1)}px), 0, 0) rotate(${rot.toFixed(2)}deg)`;
       if (!minVisual || now - lastVisual >= minVisual) {
         lastVisual = now;
-        tubeWrap.style.transform =
-          `translateX(calc(-50% + ${dx.toFixed(1)}px)) rotate(${rot.toFixed(2)}deg)`;
         updateRing();
         updatePrompt(ratio);
         if (window.__ritual && window.__ritual.energy) window.__ritual.energy(ratio);
@@ -719,6 +719,42 @@ const endGrab = () => {
 };
 stageRitual.addEventListener('pointerup', endGrab);
 stageRitual.addEventListener('pointercancel', endGrab);
+
+/* 旧安卓/小红书内置 WebView 可能没有 PointerEvent：补一套 Touch 摇签。
+   现代浏览器走上面的 PointerEvent 分支，不会重复触发。 */
+if (!window.PointerEvent) {
+  stageRitual.addEventListener('touchstart', (e) => {
+    if (ritualState !== 'charging') return;
+    var target = e.target;
+    if (target && target.closest && target.closest('#skip-ritual')) return;
+    if (window.__audio) window.__audio.unlock();
+    var t = e.touches[0];
+    if (!t) return;
+    grabbing = true;
+    stageRitual.classList.add('grabbing');
+    lastPX = t.clientX; lastPY = t.clientY;
+    clearTimeout(idleTimer);
+    e.preventDefault();
+  }, { passive: false });
+  stageRitual.addEventListener('touchmove', (e) => {
+    if (!grabbing || ritualState !== 'charging') return;
+    var t = e.touches[0];
+    if (!t) return;
+    var dx = t.clientX - lastPX, dy = t.clientY - lastPY;
+    lastPX = t.clientX; lastPY = t.clientY;
+    var dist = Math.min(50, Math.abs(dx) + Math.abs(dy));
+    if (dist > 2) {
+      addEnergy(dist * 0.14);
+      pointerVel = pointerVel * 0.7 + dx * 0.3;
+      pointerOffsetX = t.clientX - window.innerWidth / 2;
+      if (window.__audio) window.__audio.rustle(Math.min(1, dist / 34));
+    }
+    e.preventDefault();
+  }, { passive: false });
+  stageRitual.addEventListener('touchend', endGrab);
+  stageRitual.addEventListener('touchcancel', endGrab);
+}
+
 
 skipBtn.onclick = () => {
   if (ritualState !== 'charging') return;
@@ -827,7 +863,7 @@ async function releaseAndDraw() {
     if (k >= 1) { tubeWrap.style.transform = ''; return; }
     const a = (1 - k) * 17;
     tubeWrap.style.transform =
-      `translateX(-50%) rotate(${(Math.sin(k * Math.PI * 4) * a).toFixed(2)}deg)`;
+      `translate3d(-50%, 0, 0) rotate(${(Math.sin(k * Math.PI * 4) * a).toFixed(2)}deg)`;
     requestAnimationFrame(swing);
   };
   requestAnimationFrame(swing);

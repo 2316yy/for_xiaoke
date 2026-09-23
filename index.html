@@ -311,7 +311,7 @@
     display: none; flex-direction: column; align-items: center; justify-content: flex-end;
     padding-bottom: 9vh; pointer-events: none;
   }
-  #stage-ritual.on { display: flex; pointer-events: auto; cursor: grab; }
+  #stage-ritual.on { display: flex; pointer-events: auto; cursor: grab; touch-action: none; }
   #stage-ritual.grabbing { cursor: grabbing; }
   #stage-ritual::before {
     content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -341,7 +341,7 @@
   @keyframes promptPulse { 50% { opacity: .55; } }
 
   .tube-scene { position: relative; width: 220px; height: 320px; pointer-events: none; }
-  .tube-wrap { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); transform-origin: 50% 90%; }
+  .tube-wrap { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); transform-origin: 50% 90%; will-change: transform; backface-visibility: hidden; }
 
   .energy {
     position: absolute; left: 50%; bottom: -18px; transform: translateX(-50%);
