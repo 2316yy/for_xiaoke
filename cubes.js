@@ -22,7 +22,11 @@ const OUTER_R = 4.4;        // 可摆放外半径
 const REDUCED = window.matchMedia
   && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function createGarden({ scene, camera, controls, renderer, floorY }) {
+export function createGarden({ scene, camera, controls, renderer, floorY, quality }) {
+  const Q = quality || {};
+  const CAST_SHADOWS = Q.shadows !== false;
+  const GARDEN_FX = Q.gardenFx !== false;
+  const SPARKLE_COUNT = Q.sparkleCount || ((window.__device && window.__device.mobile) ? 26 : 42);
   const group = new THREE.Group();      // 所有方块
   scene.add(group);
   const fxGroup = new THREE.Group();    // 指示器 / 特效
@@ -83,7 +87,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
         emissive: new THREE.Color(meta.color), emissiveIntensity: 0.14,
       })
     );
-    box.castShadow = true;
+    box.castShadow = CAST_SHADOWS;
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(box.geometry),
       new THREE.LineBasicMaterial({ color: new THREE.Color(meta.color), transparent: true, opacity: 0.85 })
@@ -107,7 +111,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
       model.position.set(-c.x, -box.min.y, -c.z);
       model.traverse((o) => {
         if (o.isMesh) {
-          o.castShadow = true;
+          o.castShadow = CAST_SHADOWS;
           if (o.material) { o.material.envMapIntensity = 0.75; o.material.needsUpdate = true; }
         }
       });
@@ -164,7 +168,7 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
 
     /* 宝石的星尘 */
     if (key === 'gem') {
-      const n = (window.__device && window.__device.mobile) ? 26 : 42;
+      const n = SPARKLE_COUNT;
       const pos = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -536,18 +540,20 @@ export function createGarden({ scene, camera, controls, renderer, floorY }) {
 
   /* ---------- 微动效 ---------- */
   function idleFx(t) {
-    cubes.forEach((en) => {
-      if (en.state === 'drag') return;
-      const bob = REDUCED ? 0 : Math.sin(t * 1.1 + en.phase) * 0.004;
-      en.body.position.y = bob;
-      if (en.key === 'gem' && !REDUCED) {
-        en.body.rotation.y = t * 0.3;
-        if (en.sparkles) {
-          en.sparkles.rotation.y = -t * 0.5;
-          en.sparkles.material.opacity = 0.5 + 0.35 * Math.sin(t * 2.2);
+    if (GARDEN_FX) {
+      cubes.forEach((en) => {
+        if (en.state === 'drag') return;
+        const bob = REDUCED ? 0 : Math.sin(t * 1.1 + en.phase) * 0.004;
+        en.body.position.y = bob;
+        if (en.key === 'gem' && !REDUCED) {
+          en.body.rotation.y = t * 0.3;
+          if (en.sparkles) {
+            en.sparkles.rotation.y = -t * 0.5;
+            en.sparkles.material.opacity = 0.5 + 0.35 * Math.sin(t * 2.2);
+          }
         }
-      }
-    });
+      });
+    }
     /* 今日之曜呼吸环 */
     const td = window.__dex ? window.__dex.WEEK[new Date().getDay()].key : null;
     const ten = td && cubes.get(td);

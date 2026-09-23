@@ -28,16 +28,73 @@ const app = document.getElementById('app');
 const loaderEl = document.getElementById('loader');
 const loadText = document.getElementById('load-text');
 
-/* ---------- 渲染器（2.6 移动端画质档：DPR / 阴影 / 粒子量下调） ---------- */
+/* ---------- 渲染器画质档：桌面保持 high；移动端默认 mobile/low ---------- */
 const IS_MOBILE_DEVICE = !!(window.__device && window.__device.mobile);
-const DPR_CAP = IS_MOBILE_DEVICE ? 1.5 : 2;
-const SHADOW_SIZE = IS_MOBILE_DEVICE ? 1024 : 2048;
-const starCount = (n) => Math.max(40, Math.round(n * (IS_MOBILE_DEVICE ? 0.68 : 1)));
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_CAP));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+function requestedQuality() {
+  try {
+    const p = new URLSearchParams(location.search);
+    const q = p.get('quality') || p.get('q');
+    if (q === 'high') return 'high';
+    if (q === 'low') return 'low';
+    if (q === 'medium' || q === 'mid') return 'mobile';
+  } catch (e) { /* old browsers */ }
+  return null;
+}
+function autoQualityKey() {
+  const forced = requestedQuality();
+  if (forced) return forced;
+  if (!IS_MOBILE_DEVICE) return 'high';
+  const mem = navigator.deviceMemory || 0;
+  const cores = navigator.hardwareConcurrency || 0;
+  const lowEnd = (mem && mem <= 2) || (cores && cores <= 4) || window.devicePixelRatio >= 3;
+  return lowEnd ? 'low' : 'mobile';
+}
+const QUALITY_KEY = autoQualityKey();
+const QUALITY_TIERS = {
+  high: {
+    name: 'high', dprCap: 2, maxPixels: 0, antialias: true, precision: 'highp',
+    shadows: true, shadowSize: 2048, shadowType: THREE.PCFShadowMap,
+    env: true, stars: 1, simpleFloor: false, fixedFps: 0,
+    gardenFx: true, sparkleCount: 42, ritualDomFps: 60,
+  },
+  mobile: {
+    name: 'mobile', dprCap: 1, maxPixels: 1000000, antialias: false, precision: 'mediump',
+    shadows: false, shadowSize: 512, shadowType: THREE.PCFShadowMap,
+    env: false, stars: 0.5, simpleFloor: true, fixedFps: 30,
+    gardenFx: true, sparkleCount: 20, ritualDomFps: 30,
+  },
+  low: {
+    name: 'low', dprCap: 1, maxPixels: 850000, antialias: false, precision: 'mediump',
+    shadows: false, shadowSize: 256, shadowType: THREE.BasicShadowMap,
+    env: false, stars: 0.32, simpleFloor: true, fixedFps: 30,
+    gardenFx: false, sparkleCount: 12, ritualDomFps: 30,
+  },
+};
+const CFG = QUALITY_TIERS[QUALITY_KEY] || QUALITY_TIERS.high;
+window.__quality = QUALITY_KEY;
+window.__qualityCfg = CFG;
+const DPR_CAP = CFG.dprCap;
+const starCount = (n) => Math.max(16, Math.round(n * CFG.stars));
+const renderer = new THREE.WebGLRenderer({
+  antialias: CFG.antialias,
+  alpha: false,
+  powerPreference: 'high-performance',
+  precision: CFG.precision,
+  stencil: false,
+});
+function applyRendererSize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  let ratio = Math.min(window.devicePixelRatio || 1, CFG.dprCap);
+  if (CFG.maxPixels && w * h * ratio * ratio > CFG.maxPixels) {
+    ratio = Math.max(0.5, Math.sqrt(CFG.maxPixels / (w * h)));
+  }
+  renderer.setPixelRatio(ratio);
+  renderer.setSize(w, h);
+}
+applyRendererSize();
+renderer.shadowMap.enabled = CFG.shadows;
+renderer.shadowMap.type = CFG.shadowType;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.9;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -50,8 +107,11 @@ scene.fog = new THREE.FogExp2(0x05060c, 0.02);
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 200);
 
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+if (CFG.env) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+}
 
 /* ---------- 调色板 ---------- */
 const PALETTE = {
@@ -82,13 +142,16 @@ function makeFloorTexture() {
   return tex;
 }
 
+const floorTex = makeFloorTexture();
 const floor = new THREE.Mesh(
-  new THREE.CircleGeometry(16, 64),
-  new THREE.MeshStandardMaterial({ map: makeFloorTexture(), roughness: 0.95, metalness: 0.0 })
+  new THREE.CircleGeometry(16, CFG.simpleFloor ? 40 : 64),
+  CFG.simpleFloor
+    ? new THREE.MeshLambertMaterial({ map: floorTex })
+    : new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.95, metalness: 0.0 })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -0.181;
-floor.receiveShadow = true;
+floor.receiveShadow = CFG.shadows;
 scene.add(floor);
 
 /* ============================================================
@@ -334,9 +397,11 @@ scene.add(hemi);
 
 const keyLight = new THREE.SpotLight(0xfff2dd, 14, 30, Math.PI / 5.5, 0.45, 1.6);
 keyLight.position.set(3.6, 6.2, 2.8);
-keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
-keyLight.shadow.bias = -0.0004;
+keyLight.castShadow = CFG.shadows;
+if (CFG.shadows) {
+  keyLight.shadow.mapSize.set(CFG.shadowSize, CFG.shadowSize);
+  keyLight.shadow.bias = -0.0004;
+}
 scene.add(keyLight);
 
 const fillLight = new THREE.DirectionalLight(0x6f7dd8, 0.4);
@@ -361,7 +426,7 @@ controls.dampingFactor = 0.06;
 controls.enablePan = false;
 
 /* game2.5：集曜积木台——方块落在展台四周的地面上（floor y=-0.18） */
-const garden = createGarden({ scene, camera, controls, renderer, floorY: -0.18 });
+const garden = createGarden({ scene, camera, controls, renderer, floorY: -0.18, quality: CFG });
 window.__cubes = garden;
 garden.onClick((key) => { if (window.__dexUi) window.__dexUi.openCube(key); });
 
@@ -581,7 +646,7 @@ function buildFallbackIdol() {
     g.add(tube);
   }
 
-  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = CFG.shadows; o.receiveShadow = false; } });
   return g;
 }
 
@@ -601,7 +666,7 @@ function placeModel(model) {
 
   model.traverse((o) => {
     if (o.isMesh) {
-      o.castShadow = true;
+      o.castShadow = CFG.shadows;
       o.receiveShadow = false;
       if (o.material) {
         o.material.envMapIntensity = 0.7;
@@ -612,15 +677,17 @@ function placeModel(model) {
 
   const footprint = Math.max(size.x, size.z) * scale;
   const baseR = Math.max(footprint * 0.72, 0.85);
+  const baseSeg = CFG.simpleFloor ? 44 : 72;
+  const trimSeg = CFG.simpleFloor ? 56 : 96;
   const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(baseR, baseR * 1.12, 0.18, 72),
+    new THREE.CylinderGeometry(baseR, baseR * 1.12, 0.18, baseSeg),
     new THREE.MeshStandardMaterial({ color: 0x14101f, roughness: 0.32, metalness: 0.55 })
   );
   base.position.y = -0.09;
-  base.castShadow = true;
-  base.receiveShadow = true;
+  base.castShadow = CFG.shadows;
+  base.receiveShadow = CFG.shadows;
   const trim = new THREE.Mesh(
-    new THREE.TorusGeometry(baseR * 1.01, 0.014, 12, 96),
+    new THREE.TorusGeometry(baseR * 1.01, 0.014, 12, trimSeg),
     new THREE.MeshStandardMaterial({ color: 0xd8b46a, roughness: 0.25, metalness: 0.9, emissive: 0x2e2410 })
   );
   trim.rotation.x = Math.PI / 2;
@@ -651,6 +718,7 @@ function placeModel(model) {
     loaderEl.classList.add('done');
     setTimeout(() => {
       window.__ready = true;
+      try { window.dispatchEvent(new Event('cth-ready')); } catch (e) { /* ignore */ }
       /* game2.5：恢复已集曜方（懒加载 + 线框坯先行） */
       garden.sync();
     }, 800);
@@ -687,11 +755,19 @@ loadIdolModel(0);
  * ============================================================ */
 const clock = new THREE.Clock();
 let parxCur = 0;
+let rafId = 0;
+let lastFrameAt = 0;
+const FRAME_MIN = CFG.fixedFps ? 1000 / CFG.fixedFps - 1 : 0;
 
 function tick() {
-  requestAnimationFrame(tick);
-  const t = clock.getElapsedTime();
+  rafId = requestAnimationFrame(tick);
+  if (document.hidden) return;
   const now = performance.now();
+  /* 移动端把主 3D 循环稳定在 30fps：省下的 GPU/主线程预算留给
+     摇签 UI 与 pointermove，避免 60fps 追帧失败后的长任务堆积。 */
+  if (FRAME_MIN && now - lastFrameAt < FRAME_MIN) return;
+  lastFrameAt = now;
+  const t = clock.getElapsedTime();
 
   stepTweens(now);
   garden.tick(t);
@@ -740,12 +816,34 @@ function tick() {
   controls.update();
   renderer.render(scene, camera);
 }
-tick();
+function startLoop() { if (!rafId) rafId = requestAnimationFrame(tick); }
+function stopLoop() { if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopLoop();
+  else startLoop();
+});
+startLoop();
+
+/* 调试/验收辅助：不触发额外渲染，只读最近一帧 renderer.info。 */
+window.__gfxInfo = function () {
+  const r = renderer.info.render;
+  return {
+    quality: QUALITY_KEY,
+    cfg: {
+      dprCap: CFG.dprCap, maxPixels: CFG.maxPixels, antialias: CFG.antialias,
+      shadows: CFG.shadows, env: CFG.env, stars: CFG.stars, fixedFps: CFG.fixedFps,
+    },
+    pixelRatio: renderer.getPixelRatio(),
+    canvasW: renderer.domElement.width,
+    canvasH: renderer.domElement.height,
+    calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines,
+  };
+};
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  applyRendererSize();
 
   /* 2.6 屏幕比例变化后按新 aspect 校正主页机位距离，避免转屏后裁切/过小 */
   if (homeViewReady) {

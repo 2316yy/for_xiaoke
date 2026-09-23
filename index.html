@@ -507,7 +507,7 @@
   .poem {
     margin: 30px 0 36px;
     font-size: 17px; line-height: 2.5; letter-spacing: .2em; color: #ddd6c8;
-    min-height: 168px; cursor: pointer;
+    min-height: 168px; cursor: pointer; white-space: pre-line;
     text-shadow: var(--sh);
   }
   .cursor { color: var(--gold); animation: blink .8s steps(1) infinite; }
@@ -825,6 +825,16 @@
   html.is-touch body.garden-mode #stage-home { pointer-events: none; }
   /* iOS 输入框字号 <16px 聚焦会自动缩放页面 */
   html.is-mobile #question { font-size: 16px; }
+  /* 移动端降渲染成本：动画价值不高且会触发每帧 filter/backdrop 重绘的项 */
+  html.is-mobile .ring-fg { filter: none; }
+  html.is-mobile .nav-pill,
+  html.is-mobile .sheet-reopen {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  html.is-mobile body.ritual-mode #stage-home,
+  html.is-mobile body.ritual-mode .global-nav { visibility: hidden; }
+  html.is-mobile .ritual-prompt { animation: none; }
   @media (prefers-reduced-motion: reduce) {
     .cursor { animation: none; }
     .ritual-prompt { animation: none; }

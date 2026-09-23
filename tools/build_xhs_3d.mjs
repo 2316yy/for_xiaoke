@@ -2,23 +2,24 @@
 'use strict';
 
 /* ============================================================
- * 小红书小工具 3D 版构建脚本
+ * 小红书小工具 3D 版构建脚本（模型 base64 内嵌，无 .glb）
  *   node tools/build_xhs_3d.mjs
  *
- * 依据：.skill/minitool-zip-builder/SKILL.md 及 references；
- * 但按用户明确要求保留 3D 与 .glb 资产（skill 默认文件类型不含 .glb）。
+ * 容器只允许 jpg/css/gif/svg/png/js/jpeg/json/html/woff2/webp/woff；
+ * 因此不再放 .glb 文件，而是把优化模型 base64 写进 model-idol.js /
+ * model-cubes.js，运行时 __xhsLoadGLB() 用 GLTFLoader.parse() 解析。
  *
  * 产物：
- *   xiaohongshu/dist/                        打包内容（index.html 在根）
- *   xiaohongshu/cthulhu-xhs-3d-1.0.0.zip     可上传 zip
+ *   xiaohongshu/dist/                                    打包内容（index.html 在根）
+ *   xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip        本地上传包（.gitignore）
  *
  * 关键处理：
  *   - three.js / OrbitControls / GLTFLoader / RoomEnvironment / main.js / cubes.js
  *     用 esbuild 打成经典 IIFE（容器不要 ESM / importmap / type=module）
- *   - 神像与曜方模型使用 xiaohongshu/models3d/ 里预先优化过的 GLB
- *     （idol 1.89MB + 8 个方块约 1.1MB，总 zip 控制在 10MiB 内）
- *   - 内联 script 外置；剪贴板改为可选中文本浮层
- *   - Chrome 61 的 CSS 基线回退仍保留
+ *   - 神像与曜方模型读取 xiaohongshu/models3d/ 下预先优化过的 GLB，
+ *     构建时转成 base64 .js；zip 内不再出现 .glb
+ *   - 关掉 createImageBitmap，强制 GLTFLoader 用 TextureLoader(<img> blob:) 读内嵌贴图
+ *   - 内联 script 外置；剪贴板改为可选中文本浮层；Chrome 61 CSS 基线回退
  * ============================================================ */
 
 import fs from 'node:fs';
@@ -31,15 +32,14 @@ const ROOT = path.resolve(path.dirname(__filename), '..');
 const OUT_DIR = path.join(ROOT, 'xiaohongshu');
 const DIST = path.join(OUT_DIR, 'dist');
 const MODELS = path.join(OUT_DIR, 'models3d');
-const ZIP = path.join(OUT_DIR, 'cthulhu-xhs-3d-1.0.0.zip');
+const ZIP = path.join(OUT_DIR, 'cthulhu-xhs-3d-embedded-1.0.0.zip');
 const TEMP_MAIN = path.join(ROOT, '.xhs-main.build.js');
+const TEMP_CUBES = path.join(ROOT, '.xhs-cubes.build.js');
 
 const ALLOWED_EXT = new Set([
   '.html', '.css', '.js', '.json',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
   '.woff', '.woff2',
-  /* skill 默认不允许 .glb；按用户要求保留 3D 模型 */
-  '.glb',
 ]);
 
 function read(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
@@ -65,7 +65,7 @@ function findEsbuild() {
   if (env && fs.existsSync(env)) return env;
   const candidates = [
     path.join(ROOT, 'node_modules', '.bin', 'esbuild'),
-    '/tmp/xhs3d_tools/node_modules/.bin/esbuild',
+    path.join(process.env.HOME || '', 'cth_tools', 'xhs3d_build', 'node_modules', '.bin', 'esbuild'),
     '/opt/homebrew/bin/esbuild',
   ];
   for (const p of candidates) if (fs.existsSync(p)) return p;
@@ -104,7 +104,11 @@ function patchIndex(html) {
   out = out.replace(/[ \t]*<script type="importmap">[\s\S]*?<\/script>\s*\n?/g, '');
   const moduleTag = '<script type="module" src="./main.js"></script>';
   assert(out.indexOf(moduleTag) > -1, '找不到 main.js 的 module 标签');
-  out = out.replace(moduleTag, '<script src="./xhs-ui.js"></script>\n  <script src="./app3d.js"></script>');
+  out = out.replace(moduleTag,
+    '<script src="./xhs-ui.js"></script>\n' +
+    '  <script src="./model-idol.js"></script>\n' +
+    '  <script src="./model-cubes.js"></script>\n' +
+    '  <script src="./app3d.js"></script>');
 
   out = out.replace(
     /<meta name="viewport"\s*content="[^"]*"\s*\/>/,
@@ -188,13 +192,53 @@ function patchGame(js) {
   return out;
 }
 
-/* ---------- three/main/cubes → 经典 IIFE ---------- */
+/* ---------- 优化模型 → base64 .js（包内不再出现 .glb） ---------- */
+function modelScript(entries) {
+  return 'window.__XHS_MODELS = window.__XHS_MODELS || {};\n' +
+    entries.map(([name, buf]) =>
+      "window.__XHS_MODELS['" + name + "'] = '" + buf.toString('base64') + "';\n"
+    ).join('');
+}
+
+function writeModelScripts() {
+  assert(fs.existsSync(path.join(MODELS, 'idol.glb')), '缺少 models3d/idol.glb');
+  write('model-idol.js', modelScript([
+    ['idol.glb', fs.readFileSync(path.join(MODELS, 'idol.glb'))],
+  ]));
+  const cubeDir = path.join(MODELS, 'cubes');
+  const cubeFiles = fs.readdirSync(cubeDir).filter((f) => f.endsWith('.glb')).sort();
+  assert(cubeFiles.length === 8, 'models3d/cubes 应有 8 个 glb，当前 ' + cubeFiles.length);
+  write('model-cubes.js', modelScript(
+    cubeFiles.map((f) => [f, fs.readFileSync(path.join(cubeDir, f))])
+  ));
+}
+
+/* ---------- three/main/cubes → 经典 IIFE（模型改为内嵌 parse） ---------- */
 function bundleApp() {
-  assert(fs.existsSync(MODELS), '缺少优化模型目录 xiaohongshu/models3d/');
   let main = read('main.js');
-  main = main.replace("'./小克1.1.glb'", "'./assets/idol.glb'");
-  assert(main.indexOf("'./assets/idol.glb'") >= 0, 'main.js 神像路径替换失败');
+  let cubes = read('cubes.js');
+
+  main = main.replace(
+    "import { createGarden } from './cubes.js';",
+    "import { createGarden } from './.xhs-cubes.build.js';"
+  );
+  assert(main.indexOf("'./.xhs-cubes.build.js'") >= 0, 'main.js 的 cubes 引用替换失败');
+
+  main = main.replace(
+    "new GLTFLoader().load('./小克1.1.glb',",
+    "window.__xhsLoadGLB(new GLTFLoader(), 'idol.glb',"
+  );
+  assert(main.indexOf("window.__xhsLoadGLB(new GLTFLoader(), 'idol.glb'") >= 0, 'main.js 神像 load 替换失败');
+
+  cubes = cubes.replace(
+    "loader.load('./assets/cubes/' + meta.file, (gltf) => {",
+    "window.__xhsLoadGLB(loader, meta.file, (gltf) => {"
+  );
+  assert(cubes.indexOf('window.__xhsLoadGLB(loader, meta.file') >= 0, 'cubes.js load 替换失败');
+
   fs.writeFileSync(TEMP_MAIN, main, 'utf8');
+  fs.writeFileSync(TEMP_CUBES, cubes, 'utf8');
+
   const esbuild = findEsbuild();
   try {
     const out = path.join(DIST, 'app3d.js');
@@ -206,11 +250,11 @@ function bundleApp() {
     assert(r.status === 0, 'esbuild 打包失败：' + (r.stderr || r.error));
   } finally {
     fs.rmSync(TEMP_MAIN, { force: true });
+    fs.rmSync(TEMP_CUBES, { force: true });
   }
 }
 
 function build() {
-  assert(fs.existsSync(path.join(MODELS, 'idol.glb')), '缺少 models3d/idol.glb');
   const patched = patchIndex(read('index.html'));
 
   fs.rmSync(DIST, { recursive: true, force: true });
@@ -226,13 +270,7 @@ function build() {
   write('compat.css', read('tools/xhs-compat.css'));
 
   bundleApp();
-
-  /* 3D 模型：idol + 8 个曜方 */
-  copy(path.join(MODELS, 'idol.glb'), 'assets/idol.glb');
-  const cubeDir = path.join(MODELS, 'cubes');
-  fs.readdirSync(cubeDir).filter((f) => f.endsWith('.glb')).forEach((f) => {
-    copy(path.join(cubeDir, f), 'assets/cubes/' + f);
-  });
+  writeModelScripts();
 
   fs.rmSync(ZIP, { force: true });
   const zip = spawnSync('zip', ['-r', '-X', ZIP, '.', '-x', '*.DS_Store'], { cwd: DIST, encoding: 'utf8' });
@@ -251,12 +289,12 @@ function build() {
   const size = fs.statSync(ZIP).size;
   const textTotal = files.filter((f) => /\.(html|css|js|json)$/i.test(f))
     .reduce((n, f) => n + fs.statSync(path.join(DIST, f)).size, 0);
-  console.log('✓ 小红书 3D 小工具已构建');
+  console.log('✓ 小红书 3D 小工具已构建（模型 base64 内嵌，无 .glb）');
   console.log('  目录 : ' + DIST);
   console.log('  zip  : ' + ZIP);
   console.log('  大小 : ' + (size / 1024 / 1024).toFixed(2) + ' MiB（' + (size / 1024).toFixed(1) + ' KiB）');
   console.log('  文件 : ' + files.length + ' 个 · 文本 ' + (textTotal / 1024).toFixed(1) + ' KiB');
-  console.log('  模型 : idol.glb + ' + files.filter((f) => f.indexOf('assets/cubes/') === 0).length + ' 个曜方 glb（已优化）');
+  console.log('  模型 : model-idol.js + model-cubes.js（8 个曜方，已优化后内嵌）');
 }
 
 build();

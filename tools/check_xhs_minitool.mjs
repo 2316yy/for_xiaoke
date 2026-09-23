@@ -135,12 +135,15 @@ refs.forEach((url) => {
   if (!byName[clean]) fail('index.html 引用的资源不在包内: ' + url);
 });
 
-/* 3D 包：模型文件必须存在且数量正确（用户明确要求保留 3D / .glb） */
+/* 3D 包：模型以 base64 内嵌在 model-*.js；包内不得再出现平台不支持的类型 */
 if (ALLOW_3D) {
-  if (!byName['assets/idol.glb']) fail('3D 包缺少 assets/idol.glb');
-  const cubes = bundle.names.filter((n) => /^assets\/cubes\/.+\.glb$/.test(n));
-  if (cubes.length !== 8) fail('3D 包 assets/cubes/ 应有 8 个曜方 glb，当前 ' + cubes.length + ' 个');
-  if (!bundle.names.some((n) => n === 'app3d.js')) fail('3D 包缺少 app3d.js（three + main + cubes 的经典 IIFE）');
+  bundle.names.forEach((n) => {
+    if (/\.(glb|gltf|bin)$/i.test(n)) fail('平台不支持的文件类型仍在包内：' + n);
+  });
+  if (!bundle.names.includes('model-idol.js')) fail('3D 包缺少 model-idol.js（内嵌神像模型）');
+  if (!bundle.names.includes('model-cubes.js')) fail('3D 包缺少 model-cubes.js（内嵌曜方模型）');
+  if (!bundle.names.includes('app3d.js')) fail('3D 包缺少 app3d.js（three + main + cubes 的经典 IIFE）');
+  info('3D 模型以内嵌 base64 方式打包：model-idol.js + model-cubes.js，包内无 .glb');
 }
 
 /* ---------- 4. 被禁 Web API / 行为扫描 ---------- */
@@ -161,6 +164,8 @@ const BANNED = [
 ];
 bundle.files.forEach((f) => {
   if (!/\.(html|css|js)$/.test(f.name)) return;
+  /* model-*.js 是 base64 数据串，不执行也不含 API 调用 */
+  if (/^model-(idol|cubes)\.js$/.test(f.name)) return;
   const is3dBundle = ALLOW_3D && f.name === 'app3d.js';
   BANNED.forEach(([needle, label]) => {
     if (f.content.indexOf(needle) < 0) return;
@@ -195,6 +200,10 @@ bundle.files.forEach((f) => {
   }
   if (ALLOW_3D && f.name === 'app3d.js') {
     info('app3d.js 由 esbuild --target=chrome61 产出，跳过文本正则扫描以避免压缩后三元表达式误报');
+    return;
+  }
+  if (/^model-(idol|cubes)\.js$/.test(f.name)) {
+    info(f.name + ' 是内嵌 base64 数据脚本，跳过语法/API 文本扫描');
     return;
   }
   MODERN_SYNTAX.forEach(([re, label]) => {

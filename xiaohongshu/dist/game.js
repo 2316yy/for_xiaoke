@@ -308,6 +308,8 @@ const GLYPHS = ['🜏','🜂','🜃','🜄','🜁','🜍','🜔','🜚','🝳','
 /* 系统的“减少动态效果”偏好：签诗不再逐字打 */
 const REDUCED_UI = !!(window.matchMedia
   && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const IS_MOBILE_UI = !!(window.__device && window.__device.mobile);
+const RITUAL_DOM_FPS = IS_MOBILE_UI ? 30 : 0;
 
 /* ============ 工具 ============ */
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -527,8 +529,14 @@ selectMood(currentMood);
 
 /* ============ 声音 ============ */
 const unlockAudio = () => { if (window.__audio) window.__audio.unlock(); };
-window.addEventListener('pointerdown', unlockAudio, { once: true });
-window.addEventListener('keydown', unlockAudio, { once: true });
+const keepAudioAlive = () => { if (window.__audio && window.__audio.resume) window.__audio.resume(); };
+/* 不用 once：移动端切后台/来电后 AudioContext 会被挂起，
+   下一次触摸/按键继续保活，避免「手机端音效丢失」。 */
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('click', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
+window.addEventListener('pageshow', keepAudioAlive);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAudioAlive(); });
 
 const sndBtn = document.getElementById('snd');
 function syncSndBtn() {
@@ -646,6 +654,8 @@ function addEnergy(v) {
 function startRitualLoop() {
   cancelAnimationFrame(ritualRaf);
   let last = performance.now();
+  let lastVisual = 0;
+  const minVisual = RITUAL_DOM_FPS ? 1000 / RITUAL_DOM_FPS - 2 : 0;
   const step = (now) => {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -660,13 +670,18 @@ function startRitualLoop() {
       } else {
         rot = Math.sin(swayT * (2 + ratio * 22)) * (2 + ratio * 10);
       }
-      tubeWrap.style.transform =
-        `translateX(calc(-50% + ${dx.toFixed(1)}px)) rotate(${rot.toFixed(2)}deg)`;
       pointerVel *= 0.86;
       pointerOffsetX *= 0.92;
-      updateRing();
-      updatePrompt(ratio);
-      if (window.__ritual && window.__ritual.energy) window.__ritual.energy(ratio);
+      /* 移动端只让视觉/3D 联动以 30fps 写入，减少 transform / SVG filter
+         重绘与 pointermove 同帧抢占主线程；能量累积仍按 rAF 精度。 */
+      if (!minVisual || now - lastVisual >= minVisual) {
+        lastVisual = now;
+        tubeWrap.style.transform =
+          `translateX(calc(-50% + ${dx.toFixed(1)}px)) rotate(${rot.toFixed(2)}deg)`;
+        updateRing();
+        updatePrompt(ratio);
+        if (window.__ritual && window.__ritual.energy) window.__ritual.energy(ratio);
+      }
       if (energy >= 100 && energyResolve) {
         const r = energyResolve; energyResolve = null;
         r();
@@ -1038,12 +1053,13 @@ function typePoem(lines) {
   el.innerHTML = '';
   const text = lines.join('\n');
   if (REDUCED_UI) {   /* 减少动态效果：直接给全文，不逐字打 */
-    el.innerHTML = text.replace(/\n/g, '<br>');
+    el.textContent = text;
     return;
   }
   let i = 0;
   let done = false;
   const timers = [];
+  const textNode = document.createTextNode('');
   const cur = document.createElement('span');
   cur.className = 'cursor';
   cur.textContent = '▌';
@@ -1053,21 +1069,19 @@ function typePoem(lines) {
     done = true;
     timers.forEach(clearTimeout);
     cur.remove();
-    el.innerHTML = '';
-    el.appendChild(document.createTextNode(text));
-    el.innerHTML = el.innerHTML.replace(/\n/g, '<br>');
+    textNode.data = text;
+    el.onclick = null;
   }
   el.onclick = finish;
 
   function step() {
     if (done) return;
-    if (i >= text.length) { cur.remove(); done = true; return; }
+    if (i >= text.length) { finish(); return; }
     const ch = text[i++];
-    if (ch === '\n') el.appendChild(document.createElement('br'));
-    else el.appendChild(document.createTextNode(ch));
-    el.appendChild(cur);
+    textNode.data = text.slice(0, i);
     timers.push(setTimeout(step, ch === '\n' ? 300 : 90));
   }
+  el.appendChild(textNode);
   el.appendChild(cur);
   step();
 }
@@ -1083,9 +1097,16 @@ document.getElementById('coach-ok').onclick = closeCoach;
 coachEl.addEventListener('click', (e) => { if (e.target === coachEl) closeCoach(); });
 document.getElementById('help').onclick = () => coachEl.classList.add('on');
 
+/* 场景 ready 时由 main.js 立即广播：不用等 readyPoll 轮询，
+   回归脚本和移动端首访都能稳定看到引导层。 */
+function showCoachIfNeeded() {
+  if (!coachSeen && window.__ready) coachEl.classList.add('on');
+}
+window.addEventListener('cth-ready', showCoachIfNeeded);
+
 const readyPoll = setInterval(() => {
   if (window.__ready) {
     clearInterval(readyPoll);
-    if (!coachSeen) coachEl.classList.add('on');
+    showCoachIfNeeded();
   }
 }, 300);

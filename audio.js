@@ -14,6 +14,8 @@
   let master = null;
   let ambientOn = false;
   let muted = false;
+  let noiseBuf = null;     // shared white-noise buffer: avoid per-shake GC
+  let rustleVoice = null;  // persistent rustle voice: avoid AudioNode churn
   try { muted = localStorage.getItem(LS_KEY) === '1'; } catch (e) { /* ignore */ }
 
   function ensureCtx() {
@@ -29,17 +31,56 @@
     } catch (e) { return false; }
   }
 
+  /* 页面切后台/来电后 Chrome/Safari 会把 ctx 挂起；下一次手势或
+     可见性恢复时主动 resume，避免「手机端音效丢失」。 */
+  function resumeCtx() {
+    if (!ctx) return;
+    try {
+      if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+        const p = ctx.resume();
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   function noiseBuffer(seconds = 2) {
-    const len = Math.floor(ctx.sampleRate * seconds);
+    const need = Math.max(2.6, seconds || 2);
+    if (noiseBuf && noiseBuf.duration >= need) return noiseBuf;
+    const len = Math.floor(ctx.sampleRate * need);
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    noiseBuf = buf;
     return buf;
+  }
+
+  /* 摇签沙沙改成一条常驻噪声通道，只调 gain/frequency，不再每 70ms
+     创建 BufferSource + Biquad + Gain。 */
+  function ensureRustleVoice() {
+    if (!ctx || rustleVoice) return;
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(2.4);
+      src.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.Q.value = 1.2;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(master);
+      src.start();
+      rustleVoice = { src, bp, g };
+    } catch (e) { /* ignore */ }
   }
 
   /* ---------- 深海嗡鸣 ---------- */
   function startAmbient() {
-    if (!ensureCtx() || ambientOn) return;
+    if (!ensureCtx()) return;
+    resumeCtx();
+    ensureRustleVoice();
+    if (ambientOn) return;
     ambientOn = true;
     try {
       const g = ctx.createGain();
@@ -59,7 +100,7 @@
 
       // 极低通噪声——远处的水
       const noise = ctx.createBufferSource();
-      noise.buffer = noiseBuffer(4);
+      noise.buffer = noiseBuffer(2.6);
       noise.loop = true;
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass'; lp.frequency.value = 160; lp.Q.value = 0.4;
@@ -82,30 +123,29 @@
   let lastRustle = 0;
   function rustle(intensity) {
     if (!ctx || muted) return;
+    resumeCtx();
+    ensureRustleVoice();
+    if (!rustleVoice) return;
     const now = performance.now();
     if (now - lastRustle < 70) return;
     lastRustle = now;
     try {
-      const v = Math.min(1, intensity);
-      const src = ctx.createBufferSource();
-      src.buffer = noiseBuffer(0.12);
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = 700 + Math.random() * 900 + v * 600;
-      bp.Q.value = 1.2;
-      const g = ctx.createGain();
+      const v = Math.min(1, Math.max(0, intensity || 0));
       const t = ctx.currentTime;
-      g.gain.setValueAtTime(0.001 + v * 0.12, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09 + Math.random() * 0.05);
-      src.connect(bp); bp.connect(g); g.connect(master);
-      src.start();
-      src.stop(t + 0.16);
+      const bp = rustleVoice.bp;
+      const g = rustleVoice.g;
+      bp.frequency.cancelScheduledValues(t);
+      bp.frequency.setValueAtTime(700 + Math.random() * 900 + v * 600, t);
+      g.gain.cancelScheduledValues(t);
+      g.gain.setTargetAtTime(0.001 + v * 0.12, t, 0.008);
+      g.gain.setTargetAtTime(0.0001, t + 0.055, 0.025);
     } catch (e) { /* 静默失败 */ }
   }
 
   /* ---------- 出签钟磬 + 低频鼓点 ---------- */
   function bell() {
     if (!ctx || muted) return;
+    resumeCtx();
     try {
       const t = ctx.currentTime;
       const base = 528;
@@ -136,6 +176,7 @@
   /* ---------- 揭签气流（上升扫频） ---------- */
   function riser() {
     if (!ctx || muted) return;
+    resumeCtx();
     try {
       const t = ctx.currentTime;
       const src = ctx.createBufferSource();
@@ -156,6 +197,7 @@
   /* ---------- 轻触气泡音 ---------- */
   function tick() {
     if (!ctx || muted) return;
+    resumeCtx();
     try {
       const t = ctx.currentTime;
       const o = ctx.createOscillator();
@@ -173,6 +215,7 @@
   /* ---------- game2.5：积木落子的木石叩击（强度 0..1） ---------- */
   function knock(strength) {
     if (!ctx || muted) return;
+    resumeCtx();
     const s = Math.max(0.1, Math.min(1, strength == null ? 1 : strength));
     try {
       const t = ctx.currentTime;
@@ -202,6 +245,7 @@
   /* ---------- game2.5：宝石降临的星屑琶音 ---------- */
   function shimmer() {
     if (!ctx || muted) return;
+    resumeCtx();
     try {
       const t = ctx.currentTime;
       [1568, 1975.5, 2349.3, 3136].forEach((f, i) => {
@@ -221,10 +265,11 @@
 
   /* ---------- 对外接口 ---------- */
   window.__audio = {
-    /* 首次用户手势调用：解锁 AudioContext 并启动环境声 */
+    /* 首次用户手势调用：解锁 AudioContext 并启动环境声；
+       之后每次手势调用都只做 resume 与幂等保活。 */
     unlock() {
       if (!ensureCtx()) return;
-      if (ctx.state === 'suspended') { ctx.resume().catch(() => {}); }
+      resumeCtx();
       startAmbient();
     },
     rustle,
@@ -233,10 +278,12 @@
     tick,
     knock,
     shimmer,
+    resume() { resumeCtx(); },
     setMuted(m) {
       muted = m;
       try { localStorage.setItem(LS_KEY, m ? '1' : '0'); } catch (e) { /* ignore */ }
       if (master) master.gain.value = m ? 0 : 0.9;
+      if (!m && ctx) { resumeCtx(); startAmbient(); }
     },
     get muted() { return muted; },
   };

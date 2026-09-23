@@ -116,12 +116,45 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 - 卦名会驱动结果页的卦象图标（`game.js` 的 `hexLines`）：改卦名不会崩，但名称不符合六十四卦命名时图标会消失，尽量别随意改。
 - `grade` 会影响结果页“理智消耗”，区间数值在 `tools/lots_build.cjs` 顶部 `SAN_RANGE`；那是数值配置，不属于文案。
 
-## 八、小红书小工具版（离线 H5 包）
+## 八、小红书小工具版（3D 模型内嵌，离线 H5 包）
 
-- **产物**：`xiaohongshu/cthulhu-xhs-3d-1.0.0.zip`（本地上传用，已 `.gitignore`，不推 GitHub）；`xiaohongshu/dist/`（可在本地起静态服务预览）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB）；`xiaohongshu/README.md`（校验摘要）。
-- **重建**：`node tools/build_xhs_3d.mjs`（用 esbuild 把 three.js + main.js + cubes.js 打成经典 IIFE；缺 esbuild 时 `npm i -D esbuild` 或设 `ESBUILD=/path/to/esbuild`）。
+- **产物**：`xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip`（本地上传用，已 `.gitignore`，不推 GitHub）；`xiaohongshu/dist/`（可在本地起静态服务预览）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB，仅构建源）；`xiaohongshu/README.md`（校验摘要）。
+- **重建**：`node tools/build_xhs_3d.mjs`（需要 esbuild；本机在 `~/cth_tools/xhs3d_build/node_modules/.bin/esbuild`，也可 `npm i -D esbuild` 或设 `ESBUILD=/path/to/esbuild`）。
 - **静态校验**：`node tools/check_xhs_minitool.mjs xiaohongshu/dist --allow-3d`，再用 `.skill/minitool-zip-builder/scripts/` 下的 Node / Python 审计脚本量体积。
-- **3D 方案**：保留 Three.js 祭坛、`idol.glb`（1.42MB / 约 5.5 万 tris）和 8 个曜方 GLB（每个 82~167KB，已用 gltf-transform 简化 + 512/256 贴图）；ESM/importmap/module 都换成经典脚本，内联脚本外置，剪贴板改为可选中文本浮层，CSS 做 Chrome 61 基线回退。
-- **与 skill 的偏差（用户明确要求）**：skill 的允许文件类型不含 `.glb`，且禁止 fetch/XHR；本包保留 `.glb` 并由 three.js 加载器读取本地文件，因此静态校验把这两项列为 WARN（模型本地加载，无远程请求）。若上传平台强制拒绝 `.glb`，需要改回 2D 或把模型转成内嵌格式。
-- **保留**：64 签新文案、12 心情、心情定签池、签卡共鸣标签、签谱/集曜/曜录（localStorage）、3D 摇签仪式、Web Audio 音效。
-- 目标基线是 Chrome 61 / Android 8.1，但本机没有该内核，**WebGL / CSS 兼容性与真机性能未实测**；上线前请在 PC 模拟器与低端真机各走一遍首屏、摇签、结果卡、曜方拖动。
+- **上传限制处理**：小红书只允许 `jpg/css/gif/svg/png/js/jpeg/json/html/woff2/webp/woff`，所以包内不再放 `.glb`。优化模型在构建时转 base64 写进 `model-idol.js` / `model-cubes.js`，运行时 `__xhsLoadGLB()` 用 `GLTFLoader.parse()` 解析；`xhs-ui.js` 置空 `createImageBitmap` 以强制 `TextureLoader(<img> blob:)` 读内嵌贴图。上传包内只有 `html/css/js`。
+- **与 skill 的偏差**：`app3d.js` 内 three.js 自带 FileLoader 仍有 `fetch(` 代码，但本包不调用（模型走 `parse`，贴图走 blob `<img>`）；静态校验列为 WARN。zip 2.20 MiB 仅超建议值，未超 10 MiB 上限。
+- **保留**：64 签新文案、12 心情、心情定签池、签卡共鸣标签、签谱/集曜/曜录（localStorage）、完整 3D 摇签仪式、Web Audio 音效。
+- 目标基线是 Chrome 61 / Android 8.1，但本机没有该内核，**WebGL / CSS 兼容性与真机性能未实测**；上传 PC 模拟器后请走一遍首屏、摇签、结果卡、曜方拖动。
+
+
+## 九、2.6 移动端求签性能与音频修复
+
+本次针对手机端「求签界面很卡」和「手机端音效丢失」做了一轮性能改造。改动点：
+
+- **画质档**：`main.js` 新增 `high / mobile / low` 三档，默认桌面 `high`、移动 `mobile`；移动端若 `deviceMemory <= 2`、`hardwareConcurrency <= 4` 或 DPR ≥ 3 自动走 `low`。URL 加 `?q=low|mid|high` 可覆盖。
+- **移动端渲染降档**：DPR 上限 1（`maxPixels` 100 万 / low 85 万）、关 antialias、关 shadowMap、关 `RoomEnvironment`/PMREM 环境贴图、星粒子按 0.5 / 0.32 系数缩减、地面改 Lambert、模型/底座降低分段；桌面 `high` 参数保持原体验。
+- **主循环**：移动端主 3D 循环稳定 30fps，避免 60fps 追帧失败堆积长任务；页面隐藏时用 `visibilitychange` 停掉 rAF，回到前台再启动。
+- **cubes.js**：通过 `createGarden({ quality })` 接收画质档；移动端/低画质关闭方块阴影、降低宝石星尘数量，low 档关闭非关键方块的 bob 微动。
+- **仪式 DOM**：`game.js` 的摇签视觉写入（`tubeWrap.transform`、能量环 `strokeDashoffset`、提示、`__ritual.energy`）在移动端降到 30fps；能量累积仍按 rAF 精度。移动端 CSS 关闭能量环 `drop-shadow`、导航 `backdrop-filter`、提示脉冲动画，并在仪式态隐藏主面板/导航的绘制。
+- **打字机**：签诗改成复用单个 `TextNode` 累加，不再每字创建/搬移节点；`.poem` 用 `white-space: pre-line` 保留换行。
+- **audio.js**：摇签沙沙改为一条常驻噪声源 + 常驻 gain/filter，不再每 70ms `createBufferSource/newBiquadFilter/createGain` 和重复生成噪声 buffer；共享 white-noise buffer；`resumeCtx()` 在每次音效、visibility、页面恢复时尝试恢复 AudioContext；游戏层 `pointerdown / click / keydown` 不再 once，切后台/来电后下一次手势会自动恢复。已用探针验证：12 次 `rustle` 新增 0 个 buffer/source；`suspend()` 后下一次 tap 可回到 `running`。
+
+### 实测数据（Playwright 手机模拟 390×844，isMobile/hasTouch，headless Chromium）
+
+- 探针：`~/cth_tools/perf_ritual.cjs`，流程为首页写困惑 → 选心情 → 求签 → CDP touch 摇晃 → 出签 → 结果卡；采样 rAF 帧间隔、`PerformanceObserver` longtask。
+- DPR=2 优化前：摇晃段约 **3.7 fps**，92 个 longtask（>50ms），摇晃总时长被主线程拖到约 25s。
+- DPR=2 优化后：摇晃段约 **30.1 fps**，**0** 个 longtask，摇晃脚本约 4.5s 跑完。
+- DPR=3 优化前（HEAD 原版）：摇晃段约 **3.7 fps**，93 个 longtask。
+- DPR=3 优化后：摇晃段约 **29.7 fps**，**0** 个 longtask。
+- 所有数据均为本机 Playwright 模拟，**真机性能未实测**；上线前仍建议在 Android Chrome / iOS Safari 真机走一遍首屏、摇签、结果卡、曜方拖动。
+
+### 音频修复验收
+
+- 探针：`~/cth_tools/audio_probe2.cjs`。
+- 首访第一次 tap 后 AudioContext 为 `running`；人为 `suspend()` 后下一次 tap 自动恢复 `running`；连续 12 次 `rustle` 新增 buffer/source 均为 0。
+
+### 小红书版
+
+- 主站源码改动会经 `tools/build_xhs_3d.mjs` 重新打进 `app3d.js` / `audio.js` / `game.js`。
+- 重建后固定检查：`node tools/check_xhs_minitool.mjs xiaohongshu/dist --allow-3d`、`.skill/minitool-zip-builder/scripts/` 下的 Node/Python 审计、`~/cth_tools/xhs_embedded_probe.cjs`。
+- zip 仍只留 `xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip`，已 gitignore，不推 GitHub。

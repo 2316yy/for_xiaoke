@@ -10,6 +10,31 @@
 
   window.__xhsMini = true;
 
+  /* ---------- 内嵌模型：base64 → ArrayBuffer → GLTFLoader.parse ----------
+   * 容器只允许 jpg/css/gif/svg/png/js/jpeg/json/html/woff2/webp/woff，
+   * 所以模型以 base64 放进 model-*.js，包内不再出现 .glb。
+   * 同时关掉 createImageBitmap，强制 GLTFLoader 用 TextureLoader(<img> blob:)
+   * 读取 GLB 内嵌贴图，避免 ImageBitmapLoader 内部走 fetch。 */
+  try { window.createImageBitmap = undefined; } catch (e) { /* 旧内核忽略 */ }
+
+  function base64ToArrayBuffer(b64) {
+    var bin = window.atob(b64);
+    var len = bin.length;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  window.__xhsLoadGLB = function (loader, name, onLoad, onProgress, onError) {
+    try {
+      var b64 = window.__XHS_MODELS && window.__XHS_MODELS[name];
+      if (!b64) throw new Error('embedded model missing: ' + name);
+      loader.parse(base64ToArrayBuffer(b64), '', onLoad, onError);
+    } catch (err) {
+      if (onError) onError(err);
+    }
+  };
+
   /* ---------- 复制浮层（替代容器不提供的剪贴板能力） ---------- */
   function ensureCopyLayer() {
     var veil = document.getElementById('xhs-copy');
