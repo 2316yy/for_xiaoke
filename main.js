@@ -60,13 +60,13 @@ const QUALITY_TIERS = {
   mobile: {
     name: 'mobile', dprCap: 1, maxPixels: 1000000, antialias: false, precision: 'mediump',
     shadows: false, shadowSize: 512, shadowType: THREE.PCFShadowMap,
-    env: false, stars: 0.5, simpleFloor: true, fixedFps: 30,
+    env: false, stars: 0.6, simpleFloor: true, fixedFps: 30,
     gardenFx: true, sparkleCount: 20, ritualDomFps: 30,
   },
   low: {
     name: 'low', dprCap: 1, maxPixels: 850000, antialias: false, precision: 'mediump',
     shadows: false, shadowSize: 256, shadowType: THREE.BasicShadowMap,
-    env: false, stars: 0.32, simpleFloor: true, fixedFps: 30,
+    env: false, stars: 0.45, simpleFloor: true, fixedFps: 30,
     gardenFx: false, sparkleCount: 12, ritualDomFps: 30,
   },
 };
@@ -96,7 +96,7 @@ applyRendererSize();
 renderer.shadowMap.enabled = CFG.shadows;
 renderer.shadowMap.type = CFG.shadowType;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.9;
+renderer.toneMappingExposure = CFG.env ? 0.9 : 1.28;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.appendChild(renderer.domElement);
 
@@ -111,6 +111,10 @@ if (CFG.env) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
+} else {
+  /* 移动端无环境贴图时补一层廉价环境光，避免模型/曜方整体沉进黑色；
+     环境光只影响颜色，不增加阴影/反射贴图采样。 */
+  scene.add(new THREE.AmbientLight(0x9b95d0, 12.0));
 }
 
 /* ---------- 调色板 ---------- */
@@ -132,9 +136,16 @@ function makeFloorTexture() {
   c.width = c.height = 512;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(256, 256, 10, 256, 256, 256);
-  grad.addColorStop(0, '#181426');
-  grad.addColorStop(0.45, '#0c0a16');
-  grad.addColorStop(1, '#05060c');
+  if (CFG.simpleFloor) {
+    /* 移动端无环境贴图，地板纹理本身提亮一点，给俯视角一个可读的落点 */
+    grad.addColorStop(0, '#443a6b');
+    grad.addColorStop(0.45, '#201a3b');
+    grad.addColorStop(1, '#090a14');
+  } else {
+    grad.addColorStop(0, '#181426');
+    grad.addColorStop(0.45, '#0c0a16');
+    grad.addColorStop(1, '#05060c');
+  }
   g.fillStyle = grad;
   g.fillRect(0, 0, 512, 512);
   const tex = new THREE.CanvasTexture(c);
@@ -392,7 +403,7 @@ scene.add(farStars);
 /* ============================================================
  * 灯光
  * ============================================================ */
-const hemi = new THREE.HemisphereLight(0x8a7bd8, 0x0a0812, 0.28);
+  const hemi = new THREE.HemisphereLight(0x8a7bd8, 0x0a0812, CFG.env ? 0.28 : 1.8);
 scene.add(hemi);
 
 const keyLight = new THREE.SpotLight(0xfff2dd, 14, 30, Math.PI / 5.5, 0.45, 1.6);
@@ -404,7 +415,7 @@ if (CFG.shadows) {
 }
 scene.add(keyLight);
 
-const fillLight = new THREE.DirectionalLight(0x6f7dd8, 0.4);
+  const fillLight = new THREE.DirectionalLight(0x6f7dd8, CFG.env ? 0.4 : 1.2);
 fillLight.position.set(-4.5, 2.6, 3.2);
 scene.add(fillLight);
 

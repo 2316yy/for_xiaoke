@@ -132,7 +132,7 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 本次针对手机端「求签界面很卡」和「手机端音效丢失」做了一轮性能改造。改动点：
 
 - **画质档**：`main.js` 新增 `high / mobile / low` 三档，默认桌面 `high`、移动 `mobile`；移动端若 `deviceMemory <= 2`、`hardwareConcurrency <= 4` 或 DPR ≥ 3 自动走 `low`。URL 加 `?q=low|mid|high` 可覆盖。
-- **移动端渲染降档**：DPR 上限 1（`maxPixels` 100 万 / low 85 万）、关 antialias、关 shadowMap、关 `RoomEnvironment`/PMREM 环境贴图、星粒子按 0.5 / 0.32 系数缩减、地面改 Lambert、模型/底座降低分段；桌面 `high` 参数保持原体验。
+- **移动端渲染降档**：DPR 上限 1（`maxPixels` 100 万 / low 85 万）、关 antialias、关 shadowMap、关 `RoomEnvironment`/PMREM 环境贴图、星粒子按 0.6 / 0.45 系数缩减、地面改 Lambert、模型/底座降低分段；桌面 `high` 参数保持原体验。为补偿无 PMREM 后的暗场，移动端增加 `AmbientLight(0x9b95d0, 12)` + 提高 hemi/fill 强度，并把 `toneMappingExposure` 从 0.9 提到 1.28；地板纹理也单独提亮。**不能再把手机构建降到 env=false 却不加补光**，否则小红书扫码版会出现「灯光暗了/近黑」。
 - **主循环**：移动端主 3D 循环稳定 30fps，避免 60fps 追帧失败堆积长任务；页面隐藏时用 `visibilitychange` 停掉 rAF，回到前台再启动。
 - **cubes.js**：通过 `createGarden({ quality })` 接收画质档；移动端/低画质关闭方块阴影、降低宝石星尘数量，low 档关闭非关键方块的 bob 微动。
 - **仪式 DOM**：`game.js` 的摇签视觉写入（`tubeWrap.transform`、能量环 `strokeDashoffset`、提示、`__ritual.energy`）在移动端降到 30fps；能量累积仍按 rAF 精度。移动端 CSS 关闭能量环 `drop-shadow`、导航 `backdrop-filter`、提示脉冲动画，并在仪式态隐藏主面板/导航的绘制。
@@ -146,6 +146,8 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 - DPR=2 优化后：摇晃段约 **30.1 fps**，**0** 个 longtask，摇晃脚本约 4.5s 跑完。
 - DPR=3 优化前（HEAD 原版）：摇晃段约 **3.7 fps**，93 个 longtask。
 - DPR=3 优化后：摇晃段约 **29.7 fps**，**0** 个 longtask。
+- 补光后复测：DPR=2 摇晃段约 **26.6 fps / 1 个 longtask**，DPR=3 约 **27.7 fps / 1 个 longtask**（仍远好于优化前 3.7 fps）。
+- 移动端亮度探针：`~/cth_tools/xhs_mobile_visual_probe.cjs`；优化前灰阶均值约 11（近黑），补光后恢复到约 39-42（旧版环境贴图约 44.7）。
 - 所有数据均为本机 Playwright 模拟，**真机性能未实测**；上线前仍建议在 Android Chrome / iOS Safari 真机走一遍首屏、摇签、结果卡、曜方拖动。
 
 ### 音频修复验收
