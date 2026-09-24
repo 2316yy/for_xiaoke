@@ -118,7 +118,7 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 
 ## 八、小红书小工具版（3D 模型内嵌，离线 H5 包）
 
-- **产物**：`xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip`（本地上传用，已 `.gitignore`，不推 GitHub）；`xiaohongshu/dist/`（可在本地起静态服务预览）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB，仅构建源）；`xiaohongshu/README.md`（校验摘要）。
+- **产物**：`xiaohongshu/cthulhu-xhs-3d-embedded-1.1.0.zip`（本地上传用，已 `.gitignore`，不推 GitHub；`index.html` 带 `<meta name="xhs-tool-version" content="1.1.0">`）；`xiaohongshu/dist/`（可在本地起静态服务预览）；`xiaohongshu/models3d/`（优化后的 idol + 8 个曜方 GLB，仅构建源）；`xiaohongshu/README.md`（校验摘要）。
 - **重建**：`node tools/build_xhs_3d.mjs`（需要 esbuild；本机在 `~/cth_tools/xhs3d_build/node_modules/.bin/esbuild`，也可 `npm i -D esbuild` 或设 `ESBUILD=/path/to/esbuild`）。
 - **静态校验**：`node tools/check_xhs_minitool.mjs xiaohongshu/dist --allow-3d`，再用 `.skill/minitool-zip-builder/scripts/` 下的 Node / Python 审计脚本量体积。
 - **上传限制处理**：小红书只允许 `jpg/css/gif/svg/png/js/jpeg/json/html/woff2/webp/woff`，所以包内不再放 `.glb`。优化模型在构建时转 base64 写进 `model-idol.js` / `model-cubes.js`，运行时 `__xhsLoadGLB()` 用 `GLTFLoader.parse()` 解析；`xhs-ui.js` 置空 `createImageBitmap` 以强制 `TextureLoader(<img> blob:)` 读内嵌贴图。上传包内只有 `html/css/js`。
@@ -162,4 +162,4 @@ regress.cjs / regress2.cjs 回归（无 console 报错），同步备份盘副�
 
 - 主站源码改动会经 `tools/build_xhs_3d.mjs` 重新打进 `app3d.js` / `audio.js` / `game.js`。
 - 重建后固定检查：`node tools/check_xhs_minitool.mjs xiaohongshu/dist --allow-3d`、`.skill/minitool-zip-builder/scripts/` 下的 Node/Python 审计、`~/cth_tools/xhs_embedded_probe.cjs`。
-- zip 仍只留 `xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip`，已 gitignore，不推 GitHub。
+- zip 只留本地 `xiaohongshu/cthulhu-xhs-3d-embedded-1.1.0.zip`，已 gitignore，不推 GitHub。

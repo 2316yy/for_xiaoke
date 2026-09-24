@@ -1,10 +1,10 @@
-# 向克苏鲁许愿 · 小红书 3D 小工具版（模型内嵌，无 .glb）
+# 向克苏鲁许愿 · 小红书 3D 小工具版 v1.1.0（模型内嵌，无 .glb）
 
-小红书上传器只允许 `jpg/css/gif/svg/png/js/jpeg/json/html/woff2/webp/woff`，`.glb` 会被直接拒绝。这一版把优化后的模型 base64 内嵌进 JS，运行时用 `GLTFLoader.parse()` 解析——**包内没有任何 `.glb`，但 3D 完整保留**。
+小红书上传器只允许 `jpg/css/gif/svg/png/js/jpeg/json/html/woff2/webp/woff`，`.glb` 会被直接拒绝。这一版把优化后的模型 base64 内嵌进 JS，运行时用 `GLTFLoader.parse()` 解析——**包内没有任何 `.glb`，但 3D 完整保留**。1.1.0 在 dist 的 `<meta name="xhs-tool-version">` 里带版本号。
 
 ## 产物
 
-- 本地上传包（已 `.gitignore`，不推 GitHub）：`xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip`（2.20 MiB）
+- 本地上传包（已 `.gitignore`，不推 GitHub）：`xiaohongshu/cthulhu-xhs-3d-embedded-1.1.0.zip`（2.20 MiB）
 - 本地预览目录：`xiaohongshu/dist/`
 - 优化后模型源：`xiaohongshu/models3d/`（仅构建用，不会进包）
 - 重新构建：`node tools/build_xhs_3d.mjs`

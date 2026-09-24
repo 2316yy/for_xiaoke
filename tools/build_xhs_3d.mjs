@@ -11,7 +11,7 @@
  *
  * 产物：
  *   xiaohongshu/dist/                                    打包内容（index.html 在根）
- *   xiaohongshu/cthulhu-xhs-3d-embedded-1.0.0.zip        本地上传包（.gitignore）
+ *   xiaohongshu/cthulhu-xhs-3d-embedded-1.1.0.zip        本地上传包（.gitignore）
  *
  * 关键处理：
  *   - three.js / OrbitControls / GLTFLoader / RoomEnvironment / main.js / cubes.js
@@ -29,10 +29,11 @@ import { spawnSync } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(__filename), '..');
+const VERSION = '1.1.0';
 const OUT_DIR = path.join(ROOT, 'xiaohongshu');
 const DIST = path.join(OUT_DIR, 'dist');
 const MODELS = path.join(OUT_DIR, 'models3d');
-const ZIP = path.join(OUT_DIR, 'cthulhu-xhs-3d-embedded-1.0.0.zip');
+const ZIP = path.join(OUT_DIR, 'cthulhu-xhs-3d-embedded-' + VERSION + '.zip');
 const TEMP_MAIN = path.join(ROOT, '.xhs-main.build.js');
 const TEMP_CUBES = path.join(ROOT, '.xhs-cubes.build.js');
 
@@ -114,7 +115,7 @@ function patchIndex(html) {
     /<meta name="viewport"\s*content="[^"]*"\s*\/>/,
     '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />'
   );
-  out = out.replace('<title>向克苏鲁许愿 · 集曜 2.5</title>', '<title>向克苏鲁许愿</title>');
+  out = out.replace('<title>向克苏鲁许愿 · 集曜 2.5</title>', '<title>向克苏鲁许愿</title>\n<meta name="xhs-tool-version" content="' + VERSION + '" />');
 
   const styleClose = out.indexOf('</style>');
   assert(styleClose > -1, '找不到 </style>');
@@ -289,7 +290,7 @@ function build() {
   const size = fs.statSync(ZIP).size;
   const textTotal = files.filter((f) => /\.(html|css|js|json)$/i.test(f))
     .reduce((n, f) => n + fs.statSync(path.join(DIST, f)).size, 0);
-  console.log('✓ 小红书 3D 小工具已构建（模型 base64 内嵌，无 .glb）');
+  console.log('✓ 小红书 3D 小工具已构建（v' + VERSION + '，模型 base64 内嵌，无 .glb）');
   console.log('  目录 : ' + DIST);
   console.log('  zip  : ' + ZIP);
   console.log('  大小 : ' + (size / 1024 / 1024).toFixed(2) + ' MiB（' + (size / 1024).toFixed(1) + ' KiB）');
