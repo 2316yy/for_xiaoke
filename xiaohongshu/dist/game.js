@@ -535,6 +535,10 @@ const keepAudioAlive = () => { if (window.__audio && window.__audio.resume) wind
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('click', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
+/* 小红书 WebView 可能暴露 PointerEvent 但实际只派发 TouchEvent：
+   全局补 touchstart/touchend，保证 AudioContext 一定在用户手势里创建/恢复。 */
+window.addEventListener('touchstart', unlockAudio, { capture: true, passive: true });
+window.addEventListener('touchend', keepAudioAlive, { capture: true, passive: true });
 window.addEventListener('pageshow', keepAudioAlive);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAudioAlive(); });
 

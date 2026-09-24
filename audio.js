@@ -16,19 +16,20 @@
   let muted = false;
   let noiseBuf = null;     // shared white-noise buffer: avoid per-shake GC
   let rustleVoice = null;  // persistent rustle voice: avoid AudioNode churn
+  let lastError = null;    // debug info for real-device diagnosis
   try { muted = localStorage.getItem(LS_KEY) === '1'; } catch (e) { /* ignore */ }
 
   function ensureCtx() {
     if (ctx) return true;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return false;
+      if (!AC) { lastError = 'no AudioContext'; return false; }
       ctx = new AC();
       master = ctx.createGain();
-      master.gain.value = muted ? 0 : 0.9;
+      master.gain.value = muted ? 0 : 1.0;
       master.connect(ctx.destination);
       return true;
-    } catch (e) { return false; }
+    } catch (e) { lastError = (e && e.message) || 'AudioContext create failed'; return false; }
   }
 
   /* 页面切后台/来电后 Chrome/Safari 会把 ctx 挂起；下一次手势或
@@ -115,7 +116,7 @@
       lfo.connect(lfoG); lfoG.connect(g.gain);
       lfo.start();
 
-      g.gain.linearRampToValueAtTime(0.075, ctx.currentTime + 3.5);
+      g.gain.linearRampToValueAtTime(0.11, ctx.currentTime + 3.5);
     } catch (e) { /* 静默失败 */ }
   }
 
@@ -137,7 +138,7 @@
       bp.frequency.cancelScheduledValues(t);
       bp.frequency.setValueAtTime(700 + Math.random() * 900 + v * 600, t);
       g.gain.cancelScheduledValues(t);
-      g.gain.setTargetAtTime(0.001 + v * 0.12, t, 0.008);
+      g.gain.setTargetAtTime(0.001 + v * 0.16, t, 0.008);
       g.gain.setTargetAtTime(0.0001, t + 0.055, 0.025);
     } catch (e) { /* 静默失败 */ }
   }
@@ -271,6 +272,7 @@
       if (!ensureCtx()) return;
       resumeCtx();
       startAmbient();
+      window.__audioState = ctx ? ctx.state : 'no-ctx';
     },
     rustle,
     bell,
@@ -279,10 +281,20 @@
     knock,
     shimmer,
     resume() { resumeCtx(); },
+    debug() {
+      return {
+        hasCtx: !!ctx,
+        state: ctx ? ctx.state : null,
+        muted: muted,
+        ambientOn: ambientOn,
+        sampleRate: ctx ? ctx.sampleRate : null,
+        lastError: lastError,
+      };
+    },
     setMuted(m) {
       muted = m;
       try { localStorage.setItem(LS_KEY, m ? '1' : '0'); } catch (e) { /* ignore */ }
-      if (master) master.gain.value = m ? 0 : 0.9;
+      if (master) master.gain.value = m ? 0 : 1.0;
       if (!m && ctx) { resumeCtx(); startAmbient(); }
     },
     get muted() { return muted; },

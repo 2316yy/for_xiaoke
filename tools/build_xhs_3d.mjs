@@ -10,8 +10,8 @@
  * model-cubes.js，运行时 __xhsLoadGLB() 用 GLTFLoader.parse() 解析。
  *
  * 产物：
- *   xiaohongshu/dist/                                    打包内容（index.html 在根）
- *   xiaohongshu/cthulhu-xhs-3d-embedded-1.1.0.zip        本地上传包（.gitignore）
+ *   xiaohongshu/dist/                                            打包内容（index.html 在根）
+ *   xiaohongshu/cthulhu-xhs-3d-embedded-<XHS_VERSION>.zip        本地上传包（.gitignore）
  *
  * 关键处理：
  *   - three.js / OrbitControls / GLTFLoader / RoomEnvironment / main.js / cubes.js
@@ -29,7 +29,7 @@ import { spawnSync } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(__filename), '..');
-const VERSION = '1.1.0';
+const VERSION = process.env.XHS_VERSION || '1.1.0';
 const OUT_DIR = path.join(ROOT, 'xiaohongshu');
 const DIST = path.join(OUT_DIR, 'dist');
 const MODELS = path.join(OUT_DIR, 'models3d');

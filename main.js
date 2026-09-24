@@ -46,7 +46,7 @@ function autoQualityKey() {
   if (!IS_MOBILE_DEVICE) return 'high';
   const mem = navigator.deviceMemory || 0;
   const cores = navigator.hardwareConcurrency || 0;
-  const lowEnd = (mem && mem <= 2) || (cores && cores <= 4) || window.devicePixelRatio >= 3;
+  const lowEnd = (mem && mem <= 2) || (cores && cores <= 2);
   return lowEnd ? 'low' : 'mobile';
 }
 const QUALITY_KEY = autoQualityKey();
@@ -55,21 +55,21 @@ const QUALITY_TIERS = {
     name: 'high', dprCap: 2, maxPixels: 0, antialias: true, precision: 'highp',
     shadows: true, shadowSize: 2048, shadowType: THREE.PCFShadowMap,
     env: true, stars: 1, simpleFloor: false, fixedFps: 0,
-    exposure: 0.9, ambient: 0, hemi: 0.28, fill: 0.4,
+    exposure: 0.9, ambient: 0, hemi: 0.28, fill: 0.4, rim: 5,
     gardenFx: true, sparkleCount: 42, ritualDomFps: 60,
   },
   mobile: {
-    name: 'mobile', dprCap: 1, maxPixels: 1000000, antialias: false, precision: 'mediump',
-    shadows: false, shadowSize: 512, shadowType: THREE.PCFShadowMap,
-    env: true, stars: 0.6, simpleFloor: true, fixedFps: 30,
-    exposure: 1.0, ambient: 0.9, hemi: 0.95, fill: 0.7,
-    gardenFx: true, sparkleCount: 20, ritualDomFps: 30,
+    name: 'mobile', dprCap: 1.5, maxPixels: 1600000, antialias: true, precision: 'highp',
+    shadows: true, shadowSize: 1024, shadowType: THREE.PCFShadowMap,
+    env: true, stars: 0.7, simpleFloor: false, fixedFps: 30,
+    exposure: 0.9, ambient: 0, hemi: 0.28, fill: 0.4, rim: 3.5,
+    gardenFx: true, sparkleCount: 24, ritualDomFps: 30,
   },
   low: {
     name: 'low', dprCap: 1, maxPixels: 850000, antialias: false, precision: 'mediump',
-    shadows: false, shadowSize: 256, shadowType: THREE.BasicShadowMap,
-    env: true, stars: 0.45, simpleFloor: true, fixedFps: 30,
-    exposure: 1.0, ambient: 1.05, hemi: 0.95, fill: 0.7,
+    shadows: false, shadowSize: 512, shadowType: THREE.PCFShadowMap,
+    env: true, stars: 0.5, simpleFloor: true, fixedFps: 30,
+    exposure: 0.9, ambient: 0, hemi: 0.28, fill: 0.4, rim: 2.5,
     gardenFx: false, sparkleCount: 12, ritualDomFps: 30,
   },
 };
@@ -138,16 +138,9 @@ function makeFloorTexture() {
   c.width = c.height = 512;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(256, 256, 10, 256, 256, 256);
-  if (CFG.simpleFloor) {
-    /* 移动端无环境贴图，地板纹理本身提亮一点，给俯视角一个可读的落点 */
-    grad.addColorStop(0, '#443a6b');
-    grad.addColorStop(0.45, '#201a3b');
-    grad.addColorStop(1, '#090a14');
-  } else {
-    grad.addColorStop(0, '#181426');
-    grad.addColorStop(0.45, '#0c0a16');
-    grad.addColorStop(1, '#05060c');
-  }
+  grad.addColorStop(0, '#181426');
+  grad.addColorStop(0.45, '#0c0a16');
+  grad.addColorStop(1, '#05060c');
   g.fillStyle = grad;
   g.fillRect(0, 0, 512, 512);
   const tex = new THREE.CanvasTexture(c);
@@ -817,7 +810,7 @@ function tick() {
   orbitGroup.rotation.y = t * 0.22 * (0.5 + boost * 0.5);
   runeCircle.rotation.z = t * 0.05 * (0.5 + boost * 0.5);
   runeCircle.material.opacity = (0.4 + 0.1 * Math.sin(t * 0.7)) * (0.7 + boost * 0.3);
-  rimLight.intensity = 5 + 1.5 * Math.sin(t * 1.1) + gaze * 0.6;
+  rimLight.intensity = (CFG.rim || 5) + 1.0 * Math.sin(t * 1.1) + gaze * 0.6;
   gazeLight.intensity = gaze * (1 + 0.08 * Math.sin(t * 7));
 
   // 震屏（蓄力期随能量微颤；reduced-motion 下近乎关闭）
